@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(npm install:*)",
+      "Bash(npx prisma:*)",
+      "Bash(npx tsx:*)",
+      "Bash(npm run ingest:*)",
+      "Bash(npm run dev:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(curl:*)",
+      "Bash(find:*)",
+      "Bash(rm \"/Users/golf/Desktop/Project/rag-chatbot/.env 2\")",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nInitial commit: RAG Chatbot with Food Delivery System\n\n- RAG chatbot with Claude AI integration\n- Food delivery system with restaurant management\n- Food bot assistant\n- Document management system\n- Unified navigation and footer\n- Consistent theme across all pages\n- Dark mode support\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(npx vercel --version)",
+      "Bash(npx vercel --prod)",
+      "Bash(npx vercel:*)",
+      "Bash(git commit:*)",
+      "Bash(tee:*)",
+      "Bash(gh auth:*)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(git remote set-url:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

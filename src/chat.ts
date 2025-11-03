@@ -1,0 +1,124 @@
+import readline from 'readline';
+import { VectorStoreManager } from './vectorStore';
+import { RAGChain } from './chains/index';
+import { getEmbeddings } from './embeddings';
+import { config } from './config';
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+  prompt: '\n🤔 You: ',
+});
+
+async function main() {
+  console.log('='.repeat(60));
+  console.log('🤖 RAG Chatbot powered by Claude AI');
+  console.log('='.repeat(60));
+  console.log();
+
+  // Check if vector store exists
+  const embeddings = getEmbeddings();
+  const vectorStoreManager = new VectorStoreManager(embeddings);
+
+  const exists = await vectorStoreManager.exists();
+  if (!exists) {
+    console.error('❌ Vector store not found!');
+    console.log('\nPlease run the ingestion process first:');
+    console.log('  npm run ingest');
+    console.log();
+    process.exit(1);
+  }
+
+  // Load vector store
+  console.log('📂 Loading knowledge base...');
+  try {
+    await vectorStoreManager.load();
+  } catch (error) {
+    console.error('❌ Failed to load vector store:', error);
+    process.exit(1);
+  }
+
+  // Initialize RAG chain
+  const ragChain = new RAGChain(vectorStoreManager);
+
+  console.log('✅ Chatbot ready!');
+  console.log();
+  console.log('💡 Tips:');
+  console.log('  - Ask questions about your documents');
+  console.log('  - Type "exit", "quit", or "bye" to end the conversation');
+  console.log('  - Type "clear" to clear chat history');
+  console.log('='.repeat(60));
+
+  const chatHistory: string[] = [];
+
+  rl.prompt();
+
+  rl.on('line', async (input: string) => {
+    const question = input.trim();
+
+    // Check for exit commands
+    if (['exit', 'quit', 'bye', 'q'].includes(question.toLowerCase())) {
+      console.log('\n👋 Goodbye! Thanks for chatting!');
+      rl.close();
+      process.exit(0);
+    }
+
+    // Check for clear command
+    if (question.toLowerCase() === 'clear') {
+      chatHistory.length = 0;
+      console.log('\n🗑️  Chat history cleared!');
+      rl.prompt();
+      return;
+    }
+
+    // Skip empty questions
+    if (!question) {
+      rl.prompt();
+      return;
+    }
+
+    try {
+      // Add question to history
+      chatHistory.push(question);
+
+      // Show thinking indicator
+      process.stdout.write('\n🤖 Claude: ');
+
+      // Query the RAG chain with streaming
+      let answer = '';
+      for await (const chunk of ragChain.streamQuery(question, chatHistory)) {
+        process.stdout.write(chunk);
+        answer += chunk;
+      }
+
+      console.log('\n');
+
+      // Add answer to history
+      chatHistory.push(answer);
+
+      // Show sources
+      const result = await ragChain.query(question, chatHistory.slice(0, -2));
+      if (result.sourceDocuments.length > 0) {
+        console.log('📚 Sources:');
+        result.sourceDocuments.forEach((doc, index) => {
+          const source = doc.metadata.source || doc.metadata.fileName || 'Unknown';
+          console.log(`  ${index + 1}. ${source}`);
+        });
+      }
+    } catch (error) {
+      console.error('\n❌ Error:', error);
+    }
+
+    rl.prompt();
+  });
+
+  rl.on('close', () => {
+    console.log('\n👋 Goodbye!');
+    process.exit(0);
+  });
+}
+
+main().catch(error => {
+  console.error('Error starting chatbot:', error);
+  process.exit(1);
+});

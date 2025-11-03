@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --toast-bg: #ffffff;
+    --toast-color: #000000;
+    --toast-border: #e5e7eb;
+    background-color: rgb(239 246 255); /* Light mode default */
+  }
+
+  .dark {
+    --toast-bg: #1f2937;
+    --toast-color: #ffffff;
+    --toast-border: #374151;
+    color-scheme: dark;
+  }
+
+  .light {
+    background-color: rgb(239 246 255) !important;
+    color-scheme: light;
+  }
+}
+
+/* Force dark mode background */
+html.dark,
+html.dark body {
+  background-color: #111827 !important;
+  color: #ffffff;
+}
+
+/* Force light mode background */
+html.light,
+html.light body {
+  background-color: rgb(239 246 255) !important;
+  color: #000000;
+}
+
+/* Force toast notification z-index to be lower than dropdowns */
+[data-rht-toaster] {
+  z-index: 9000 !important;
+}
+
+[data-rht-toaster] > * {
+  z-index: 9000 !important;
+}

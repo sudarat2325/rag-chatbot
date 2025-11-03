@@ -1,0 +1,454 @@
+// This is your Prisma schema file for Food Delivery System
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// User Management
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  name          String
+  phone         String?
+  role          UserRole  @default(CUSTOMER)
+  avatar        String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  addresses     Address[]
+  orders        Order[]
+  reviews       Review[]
+  notifications Notification[]
+
+  // For restaurant owners
+  restaurant    Restaurant?
+
+  // For delivery drivers
+  deliveries    Delivery[]
+  driverProfile DriverProfile?
+
+  @@index([email])
+  @@index([role])
+}
+
+enum UserRole {
+  CUSTOMER
+  RESTAURANT_OWNER
+  DRIVER
+  ADMIN
+}
+
+model Address {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  label       String   // "Home", "Work", etc.
+  fullAddress String
+  latitude    Float
+  longitude   Float
+  district    String?
+  province    String?
+  postalCode  String?
+  isDefault   Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  orders      Order[]
+
+  @@index([userId])
+}
+
+// Restaurant Management
+model Restaurant {
+  id              String    @id @default(uuid())
+  ownerId         String    @unique
+  owner           User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  name            String
+  description     String?
+  logo            String?
+  coverImage      String?
+  phone           String
+  email           String?
+
+  // Location
+  address         String
+  latitude        Float
+  longitude       Float
+  district        String?
+  province        String?
+
+  // Business Info
+  rating          Float     @default(0)
+  totalReviews    Int       @default(0)
+  totalOrders     Int       @default(0)
+  isOpen          Boolean   @default(true)
+  isActive        Boolean   @default(true)
+
+  // Operating Hours (JSON format)
+  operatingHours  String?   // JSON: {monday: {open: "09:00", close: "22:00"}, ...}
+
+  // Delivery Info
+  deliveryFee     Float     @default(0)
+  minimumOrder    Float     @default(0)
+  estimatedTime   String?   // "30-45 mins"
+
+  // Categories (comma-separated)
+  categories      String?   // "Thai Food,Fast Food,Desserts"
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  menuItems       MenuItem[]
+  orders          Order[]
+  reviews         Review[]
+
+  @@index([isActive, isOpen])
+  @@index([rating])
+}
+
+// Menu Management
+model MenuItem {
+  id              String     @id @default(uuid())
+  restaurantId    String
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name            String
+  description     String?
+  price           Float
+  image           String?
+  category        String     // "Main Dish", "Appetizer", "Dessert", "Drink"
+
+  isAvailable     Boolean    @default(true)
+  isPopular       Boolean    @default(false)
+
+  // Nutrition info (optional)
+  calories        Int?
+  preparationTime String?    // "15-20 mins"
+
+  // Options (JSON format for customizations)
+  options         String?    // JSON: [{name: "Spicy Level", choices: ["Mild", "Medium", "Hot"]}]
+
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  // Relations
+  orderItems      OrderItem[]
+
+  @@index([restaurantId])
+  @@index([isAvailable])
+}
+
+// Order Management
+model Order {
+  id              String      @id @default(uuid())
+  orderNumber     String      @unique
+
+  customerId      String
+  customer        User        @relation(fields: [customerId], references: [id])
+
+  restaurantId    String
+  restaurant      Restaurant  @relation(fields: [restaurantId], references: [id])
+
+  addressId       String
+  address         Address     @relation(fields: [addressId], references: [id])
+
+  // Order Details
+  status          OrderStatus @default(PENDING)
+  subtotal        Float
+  deliveryFee     Float
+  discount        Float       @default(0)
+  total           Float
+
+  // Payment
+  paymentMethod   PaymentMethod
+  paymentStatus   PaymentStatus @default(PENDING)
+
+  // Special Instructions
+  notes           String?
+
+  // Timestamps
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  acceptedAt      DateTime?
+  preparingAt     DateTime?
+  readyAt         DateTime?
+  pickedUpAt      DateTime?
+  deliveredAt     DateTime?
+  cancelledAt     DateTime?
+
+  // Relations
+  items           OrderItem[]
+  delivery        Delivery?
+  review          Review?
+  notifications   Notification[]
+
+  @@index([customerId])
+  @@index([restaurantId])
+  @@index([status])
+  @@index([orderNumber])
+}
+
+enum OrderStatus {
+  PENDING          // รอร้านยืนยัน
+  ACCEPTED         // ร้านรับออเดอร์
+  PREPARING        // กำลังเตรียม
+  READY            // พร้อมส่ง
+  PICKED_UP        // คนส่งรับของแล้ว
+  ON_THE_WAY       // กำลังส่ง
+  DELIVERED        // ส่งแล้ว
+  CANCELLED        // ยกเลิก
+  REJECTED         // ร้านปฏิเสธ
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT_CARD
+  DEBIT_CARD
+  MOBILE_BANKING
+  PROMPTPAY
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model OrderItem {
+  id              String    @id @default(uuid())
+  orderId         String
+  order           Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  menuItemId      String
+  menuItem        MenuItem  @relation(fields: [menuItemId], references: [id])
+
+  quantity        Int
+  price           Float     // Price at time of order
+
+  // Customizations (JSON format)
+  customizations  String?   // JSON: {spicyLevel: "Hot", extras: ["Extra Sauce"]}
+
+  notes           String?
+
+  createdAt       DateTime  @default(now())
+
+  @@index([orderId])
+  @@index([menuItemId])
+}
+
+// Delivery Tracking
+model Delivery {
+  id              String         @id @default(uuid())
+  orderId         String         @unique
+  order           Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  driverId        String?
+  driver          User?          @relation(fields: [driverId], references: [id])
+
+  status          DeliveryStatus @default(FINDING_DRIVER)
+
+  // Pickup Location (Restaurant)
+  pickupLatitude  Float?
+  pickupLongitude Float?
+
+  // Delivery Location (Customer)
+  deliveryLatitude  Float?
+  deliveryLongitude Float?
+
+  // Current Driver Location (real-time)
+  currentLatitude   Float?
+  currentLongitude  Float?
+
+  // Timing
+  estimatedTime     String?
+  assignedAt        DateTime?
+  pickedUpAt        DateTime?
+  deliveredAt       DateTime?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([driverId])
+  @@index([status])
+}
+
+enum DeliveryStatus {
+  FINDING_DRIVER
+  DRIVER_ASSIGNED
+  DRIVER_ARRIVED
+  PICKED_UP
+  ON_THE_WAY
+  DELIVERED
+  FAILED
+}
+
+model DriverProfile {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  vehicleType     String   // "Motorcycle", "Car", "Bicycle"
+  vehiclePlate    String?
+
+  // Status
+  isOnline        Boolean  @default(false)
+  isAvailable     Boolean  @default(true)
+
+  // Stats
+  rating          Float    @default(5.0)
+  totalDeliveries Int      @default(0)
+
+  // Documents
+  licenseNumber   String?
+  licenseExpiry   DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isOnline, isAvailable])
+}
+
+// Review & Rating System
+model Review {
+  id              String   @id @default(uuid())
+
+  orderId         String   @unique
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  customerId      String
+  customer        User     @relation(fields: [customerId], references: [id])
+
+  restaurantId    String
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  // Ratings (1-5)
+  foodRating      Int
+  deliveryRating  Int
+  overallRating   Int
+
+  // Review
+  comment         String?
+
+  // Images
+  images          String?  // JSON array of image URLs
+
+  // Restaurant Response
+  response        String?
+  respondedAt     DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([restaurantId])
+  @@index([customerId])
+  @@index([overallRating])
+}
+
+// Notification System
+model Notification {
+  id              String           @id @default(uuid())
+  userId          String
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  orderId         String?
+  order           Order?           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  type            NotificationType
+  title           String
+  message         String
+
+  isRead          Boolean          @default(false)
+
+  // For push notifications
+  isPushed        Boolean          @default(false)
+  pushedAt        DateTime?
+
+  createdAt       DateTime         @default(now())
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+enum NotificationType {
+  ORDER_PLACED
+  ORDER_ACCEPTED
+  ORDER_PREPARING
+  ORDER_READY
+  ORDER_PICKED_UP
+  ORDER_ON_THE_WAY
+  ORDER_DELIVERED
+  ORDER_CANCELLED
+  PROMOTION
+  SYSTEM
+}
+
+// Promotion System
+model Promotion {
+  id              String    @id @default(uuid())
+
+  code            String    @unique
+  name            String
+  description     String?
+
+  type            PromotionType
+  discountValue   Float     // Percentage or fixed amount
+
+  minimumOrder    Float     @default(0)
+  maxDiscount     Float?    // Max discount for percentage type
+
+  usageLimit      Int?      // Total usage limit
+  usageCount      Int       @default(0)
+
+  isActive        Boolean   @default(true)
+
+  startDate       DateTime
+  endDate         DateTime
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+}
+
+enum PromotionType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FREE_DELIVERY
+}
+
+// Analytics & Statistics
+model DailyStats {
+  id              String   @id @default(uuid())
+  date            DateTime @unique
+
+  totalOrders     Int      @default(0)
+  totalRevenue    Float    @default(0)
+  totalDeliveries Int      @default(0)
+
+  newCustomers    Int      @default(0)
+  activeDrivers   Int      @default(0)
+
+  avgOrderValue   Float    @default(0)
+  avgDeliveryTime Float    @default(0)
+
+  createdAt       DateTime @default(now())
+
+  @@index([date])
+}
