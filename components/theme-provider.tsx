@@ -35,9 +35,6 @@ export function ThemeProvider({
   useEffect(() => {
     const root = window.document.documentElement;
 
-    console.log('🎨 Theme changing to:', theme);
-    console.log('📍 Current HTML classes before:', root.className);
-
     root.classList.remove('light', 'dark');
 
     if (theme === 'system') {
@@ -46,14 +43,10 @@ export function ThemeProvider({
         : 'light';
 
       root.classList.add(systemTheme);
-      console.log('💻 Applied system theme:', systemTheme);
-      console.log('📍 Current HTML classes after:', root.className);
       return;
     }
 
     root.classList.add(theme);
-    console.log('✅ Applied theme:', theme);
-    console.log('📍 Current HTML classes after:', root.className);
   }, [theme]);
 
   const setTheme = (newTheme: Theme) => {

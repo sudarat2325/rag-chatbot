@@ -20,9 +20,9 @@ export class VectorStoreManager {
       throw new Error('No documents provided to create vector store');
     }
 
-    console.log(`Creating vector store from ${documents.length} documents...`);
+    console.warn(`Creating vector store from ${documents.length} documents...`);
     this.vectorStore = await FaissStore.fromDocuments(documents, this.embeddings);
-    console.log('✓ Vector store created successfully');
+    console.warn('✓ Vector store created successfully');
 
     return this.vectorStore;
   }
@@ -36,13 +36,13 @@ export class VectorStoreManager {
     }
 
     if (documents.length === 0) {
-      console.log('No documents to add');
+      console.warn('No documents to add');
       return;
     }
 
-    console.log(`Adding ${documents.length} documents to vector store...`);
+    console.warn(`Adding ${documents.length} documents to vector store...`);
     await this.vectorStore.addDocuments(documents);
-    console.log('✓ Documents added successfully');
+    console.warn('✓ Documents added successfully');
   }
 
   /**
@@ -53,13 +53,13 @@ export class VectorStoreManager {
       throw new Error('No vector store to save');
     }
 
-    console.log(`Saving vector store to ${directory}...`);
+    console.warn(`Saving vector store to ${directory}...`);
 
     // Create directory if it doesn't exist
     await fs.mkdir(directory, { recursive: true });
 
     await this.vectorStore.save(directory);
-    console.log('✓ Vector store saved successfully');
+    console.warn('✓ Vector store saved successfully');
   }
 
   /**
@@ -67,9 +67,9 @@ export class VectorStoreManager {
    */
   async load(directory: string = config.vectorStorePath): Promise<FaissStore> {
     try {
-      console.log(`Loading vector store from ${directory}...`);
+      console.warn(`Loading vector store from ${directory}...`);
       this.vectorStore = await FaissStore.load(directory, this.embeddings);
-      console.log('✓ Vector store loaded successfully');
+      console.warn('✓ Vector store loaded successfully');
       return this.vectorStore;
     } catch (error) {
       console.error('Error loading vector store:', error);

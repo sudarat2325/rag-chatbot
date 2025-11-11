@@ -5,6 +5,10 @@ import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { config } from '../config';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 
+type PdfTextItem = {
+  str?: string;
+};
+
 /**
  * PDF Document Loader using pdfjs-dist
  */
@@ -14,7 +18,7 @@ export class PDFDocumentLoader {
    */
   async loadPDF(pdfPath: string): Promise<Document[]> {
     try {
-      console.log(`Loading PDF: ${pdfPath}`);
+      console.warn(`Loading PDF: ${pdfPath}`);
 
       // Read PDF file as buffer
       const dataBuffer = fs.readFileSync(pdfPath);
@@ -36,15 +40,14 @@ export class PDFDocumentLoader {
         const page = await pdfDocument.getPage(pageNum);
         const textContent = await page.getTextContent();
 
-        const pageText = textContent.items
-          .map((item: any) => item.str)
-          .join(' ');
+        const textItems = textContent.items as PdfTextItem[];
+        const pageText = textItems.map(item => item.str ?? '').join(' ');
 
         fullText += pageText + '\n\n';
       }
 
       if (!fullText.trim()) {
-        console.log(`No text extracted from ${path.basename(pdfPath)}`);
+        console.warn(`No text extracted from ${path.basename(pdfPath)}`);
         return [];
       }
 
@@ -71,7 +74,7 @@ export class PDFDocumentLoader {
           })
       );
 
-      console.log(`✓ Loaded ${documents.length} chunks from ${fileName}`);
+      console.warn(`✓ Loaded ${documents.length} chunks from ${fileName}`);
       return documents;
     } catch (error) {
       console.error(`Error loading PDF ${pdfPath}:`, error);
@@ -86,14 +89,14 @@ export class PDFDocumentLoader {
     const allDocuments: Document[] = [];
 
     if (!fs.existsSync(dirPath)) {
-      console.log(`Directory ${dirPath} does not exist`);
+      console.warn(`Directory ${dirPath} does not exist`);
       return allDocuments;
     }
 
     const files = fs.readdirSync(dirPath);
     const pdfFiles = files.filter((file) => file.toLowerCase().endsWith('.pdf'));
 
-    console.log(`Found ${pdfFiles.length} PDF file(s)`);
+    console.warn(`Found ${pdfFiles.length} PDF file(s)`);
 
     for (const file of pdfFiles) {
       const filePath = path.join(dirPath, file);

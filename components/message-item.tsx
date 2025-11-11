@@ -8,6 +8,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import { Copy, Check, Bot, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import type { Components } from 'react-markdown';
 
 interface MessageItemProps {
   role: 'user' | 'assistant';
@@ -15,6 +16,46 @@ interface MessageItemProps {
   sources?: string[];
   index: number;
 }
+
+const markdownComponents: Components = {
+  code({ inline, className, children, ...props }) {
+    const match = /language-(\w+)/.exec(className ?? '');
+    const codeContent = String(children ?? '').replace(/\n$/, '');
+
+    if (!inline && match) {
+      return (
+        <SyntaxHighlighter
+          style={vscDarkPlus}
+          language={match[1]}
+          PreTag="div"
+          className="rounded-md !my-2"
+          {...props}
+        >
+          {codeContent}
+        </SyntaxHighlighter>
+      );
+    }
+
+    return (
+      <code className="bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm" {...props}>
+        {codeContent}
+      </code>
+    );
+  },
+  a({ children, href, ...props }) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-600 dark:text-blue-400 hover:underline"
+        {...props}
+      >
+        {children}
+      </a>
+    );
+  },
+};
 
 export function MessageItem({ role, content, sources, index }: MessageItemProps) {
   const [copied, setCopied] = useState(false);
@@ -25,7 +66,7 @@ export function MessageItem({ role, content, sources, index }: MessageItemProps)
       setCopied(true);
       toast.success('Copied to clipboard!');
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
+    } catch {
       toast.error('Failed to copy');
     }
   };
@@ -77,39 +118,7 @@ export function MessageItem({ role, content, sources, index }: MessageItemProps)
           <div className="prose prose-sm dark:prose-invert max-w-none">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
-              components={{
-                code({ node, inline, className, children, ...props }: any) {
-                  const match = /language-(\w+)/.exec(className || '');
-                  return !inline && match ? (
-                    <SyntaxHighlighter
-                      style={vscDarkPlus as any}
-                      language={match[1]}
-                      PreTag="div"
-                      className="rounded-md !my-2"
-                      {...props}
-                    >
-                      {String(children).replace(/\n$/, '')}
-                    </SyntaxHighlighter>
-                  ) : (
-                    <code className="bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm" {...props}>
-                      {children}
-                    </code>
-                  );
-                },
-                a({ node, children, href, ...props }: any) {
-                  return (
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 dark:text-blue-400 hover:underline"
-                      {...props}
-                    >
-                      {children}
-                    </a>
-                  );
-                },
-              }}
+              components={markdownComponents}
             >
               {content}
             </ReactMarkdown>

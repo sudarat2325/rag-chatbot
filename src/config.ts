@@ -12,6 +12,14 @@ export const config = {
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
   claudeModel: process.env.CLAUDE_MODEL || 'claude-3-haiku-20240307',
 
+  // Embeddings configuration
+  embeddingsProvider: process.env.EMBEDDINGS_PROVIDER || '', // 'openai', 'voyage', or 'huggingface'
+  openaiApiKey: process.env.OPENAI_API_KEY || '',
+  openaiEmbeddingsModel: process.env.OPENAI_EMBEDDINGS_MODEL || 'text-embedding-3-small',
+  voyageApiKey: process.env.VOYAGE_API_KEY || '',
+  voyageEmbeddingsModel: process.env.VOYAGE_EMBEDDINGS_MODEL || 'voyage-2',
+  huggingfaceModel: process.env.HUGGINGFACE_MODEL || 'Xenova/all-MiniLM-L6-v2',
+
   // Paths
   projectRoot: path.resolve(__dirname, '..'),
   docsPath: path.resolve(__dirname, '../docs'),
@@ -24,9 +32,9 @@ export const config = {
   vectorStorePath: process.env.VECTOR_STORE_PATH || path.resolve(__dirname, '../data/vectorstore'),
 
   // RAG configuration
-  chunkSize: 1000,
-  chunkOverlap: 200,
-  retrievalK: 4, // Number of relevant documents to retrieve
+  chunkSize: parseInt(process.env.CHUNK_SIZE || '1000'),
+  chunkOverlap: parseInt(process.env.CHUNK_OVERLAP || '200'),
+  retrievalK: parseInt(process.env.RETRIEVAL_K || '4'), // Number of relevant documents to retrieve
 };
 
 // Validate required configuration

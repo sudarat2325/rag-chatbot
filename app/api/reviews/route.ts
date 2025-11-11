@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import type { ApiResponse } from '@/lib/types';
+import { Prisma } from '@prisma/client';
+
+interface CreateReviewBody {
+  orderId: string;
+  customerId: string;
+  restaurantId: string;
+  foodRating: number;
+  deliveryRating: number;
+  comment?: string;
+  images?: string[];
+}
 
 // GET /api/reviews - Get reviews
 export async function GET(request: NextRequest) {
@@ -8,9 +19,10 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const restaurantId = searchParams.get('restaurantId');
     const customerId = searchParams.get('customerId');
+    const orderId = searchParams.get('orderId');
     const limit = parseInt(searchParams.get('limit') || '20');
 
-    const where: any = {};
+    const where: Prisma.ReviewWhereInput = {};
 
     if (restaurantId) {
       where.restaurantId = restaurantId;
@@ -18,6 +30,10 @@ export async function GET(request: NextRequest) {
 
     if (customerId) {
       where.customerId = customerId;
+    }
+
+    if (orderId) {
+      where.orderId = orderId;
     }
 
     const reviews = await prisma.review.findMany({
@@ -45,9 +61,33 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Calculate statistics
+    const totalReviews = await prisma.review.count({ where });
+
+    const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    const allReviews = await prisma.review.findMany({
+      where,
+      select: { overallRating: true },
+    });
+
+    let totalRating = 0;
+    allReviews.forEach((review) => {
+      totalRating += review.overallRating;
+      if (review.overallRating >= 1 && review.overallRating <= 5) {
+        distribution[review.overallRating as keyof typeof distribution]++;
+      }
+    });
+
+    const averageRating = totalReviews > 0 ? totalRating / totalReviews : 0;
+
     const response: ApiResponse = {
       success: true,
-      data: reviews,
+      data: {
+        reviews,
+        totalReviews,
+        averageRating: Math.round(averageRating * 10) / 10,
+        distribution,
+      },
     };
 
     return NextResponse.json(response);
@@ -64,7 +104,7 @@ export async function GET(request: NextRequest) {
 // POST /api/reviews - Create review
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as CreateReviewBody;
     const {
       orderId,
       customerId,

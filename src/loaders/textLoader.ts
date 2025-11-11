@@ -20,7 +20,7 @@ export class TextDocumentLoader {
    */
   async loadTextFile(filePath: string): Promise<Document[]> {
     try {
-      console.log(`Loading text file: ${filePath}`);
+      console.warn(`Loading text file: ${filePath}`);
       const loader = new TextLoader(filePath);
       const docs = await loader.load();
 
@@ -33,7 +33,7 @@ export class TextDocumentLoader {
       // Split documents into chunks
       const splitDocs = await this.textSplitter.splitDocuments(docs);
 
-      console.log(`✓ Loaded ${splitDocs.length} chunks from ${path.basename(filePath)}`);
+      console.warn(`✓ Loaded ${splitDocs.length} chunks from ${path.basename(filePath)}`);
       return splitDocs;
     } catch (error) {
       console.error(`Error loading text file ${filePath}:`, error);
@@ -53,11 +53,11 @@ export class TextDocumentLoader {
       });
 
       if (textFiles.length === 0) {
-        console.log(`No text files found in ${dirPath}`);
+        console.warn(`No text files found in ${dirPath}`);
         return [];
       }
 
-      console.log(`Found ${textFiles.length} text file(s)`);
+      console.warn(`Found ${textFiles.length} text file(s)`);
 
       const allDocs: Document[] = [];
       for (const file of textFiles) {

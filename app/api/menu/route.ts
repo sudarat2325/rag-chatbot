@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import type { ApiResponse, CreateMenuItemDTO } from '@/lib/types';
+import { Prisma } from '@prisma/client';
 
 // GET /api/menu - Get menu items (with restaurant filter)
 export async function GET(request: NextRequest) {
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category');
     const isPopular = searchParams.get('isPopular') === 'true';
 
-    const where: any = {
+    const where: Prisma.MenuItemWhereInput = {
       isAvailable: true,
     };
 

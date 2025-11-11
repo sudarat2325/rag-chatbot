@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { calculateDistance, isRestaurantOpen } from '@/lib/utils/helpers';
-import type { ApiResponse, RestaurantWithDetails, RestaurantFilter } from '@/lib/types';
+import type { ApiResponse, RestaurantWithDetails } from '@/lib/types';
+import { Prisma } from '@prisma/client';
 
 // GET /api/restaurants - Get all restaurants with filters
 export async function GET(request: NextRequest) {
@@ -14,11 +15,17 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get('sortBy') || 'rating';
     const latitude = searchParams.get('latitude') ? parseFloat(searchParams.get('latitude')!) : undefined;
     const longitude = searchParams.get('longitude') ? parseFloat(searchParams.get('longitude')!) : undefined;
+    const ownerId = searchParams.get('ownerId') || undefined;
 
     // Build where clause
-    const where: any = {
+    const where: Prisma.RestaurantWhereInput = {
       isActive: true,
     };
+
+    // Filter by owner ID (for checking if user already has a restaurant)
+    if (ownerId) {
+      where.ownerId = ownerId;
+    }
 
     if (search) {
       where.OR = [

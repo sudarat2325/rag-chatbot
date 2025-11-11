@@ -7,61 +7,61 @@ import { Document } from '@langchain/core/documents';
 
 export async function POST() {
   try {
-    console.log('Starting document ingestion...');
+    console.warn('Starting document ingestion...');
 
     const allDocuments: Document[] = [];
 
     // Load PDF documents
-    console.log('Loading PDFs...');
+    console.warn('Loading PDFs...');
     try {
       const pdfLoader = new PDFDocumentLoader();
       const pdfDocs = await pdfLoader.loadPDFsFromDirectory(config.pdfsPath);
       allDocuments.push(...pdfDocs);
-      console.log(`Loaded ${pdfDocs.length} chunks from PDFs`);
+      console.warn(`Loaded ${pdfDocs.length} chunks from PDFs`);
     } catch (error) {
       console.warn('No PDFs found or error loading PDFs:', error);
     }
 
     // Load text/markdown documents
-    console.log('Loading text files...');
+    console.warn('Loading text files...');
     try {
       const textLoader = new TextDocumentLoader();
       const textDocs = await textLoader.loadTextsFromDirectory(config.textsPath);
       allDocuments.push(...textDocs);
-      console.log(`Loaded ${textDocs.length} chunks from text files`);
+      console.warn(`Loaded ${textDocs.length} chunks from text files`);
     } catch (error) {
       console.warn('No text files found or error loading text files:', error);
     }
 
     // Load DOCX documents
-    console.log('Loading DOCX files...');
+    console.warn('Loading DOCX files...');
     try {
       const docxLoader = new DocxLoader(config.docxPath);
       const docxDocs = await docxLoader.load();
       allDocuments.push(...docxDocs);
-      console.log(`Loaded ${docxDocs.length} chunks from DOCX files`);
+      console.warn(`Loaded ${docxDocs.length} chunks from DOCX files`);
     } catch (error) {
       console.warn('No DOCX files found or error loading DOCX files:', error);
     }
 
     // Load Excel documents
-    console.log('Loading Excel files...');
+    console.warn('Loading Excel files...');
     try {
       const xlsxLoader = new XlsxLoader(config.xlsxPath);
       const xlsxDocs = await xlsxLoader.load();
       allDocuments.push(...xlsxDocs);
-      console.log(`Loaded ${xlsxDocs.length} chunks from Excel files`);
+      console.warn(`Loaded ${xlsxDocs.length} chunks from Excel files`);
     } catch (error) {
       console.warn('No Excel files found or error loading Excel files:', error);
     }
 
     // Load PowerPoint documents
-    console.log('Loading PowerPoint files...');
+    console.warn('Loading PowerPoint files...');
     try {
       const pptxLoader = new PptxLoader(config.pptxPath);
       const pptxDocs = await pptxLoader.load();
       allDocuments.push(...pptxDocs);
-      console.log(`Loaded ${pptxDocs.length} chunks from PowerPoint files`);
+      console.warn(`Loaded ${pptxDocs.length} chunks from PowerPoint files`);
     } catch (error) {
       console.warn('No PowerPoint files found or error loading PowerPoint files:', error);
     }
@@ -77,10 +77,10 @@ export async function POST() {
       );
     }
 
-    console.log(`Total documents: ${allDocuments.length} chunks`);
+    console.warn(`Total documents: ${allDocuments.length} chunks`);
 
     // Create embeddings and vector store
-    console.log('Creating vector store...');
+    console.warn('Creating vector store...');
     const embeddings = getEmbeddings();
     const vectorStoreManager = new VectorStoreManager(embeddings);
 
@@ -89,32 +89,33 @@ export async function POST() {
 
     if (vectorStoreExists) {
       // Append to existing vector store
-      console.log('Loading existing vector store...');
+      console.warn('Loading existing vector store...');
       await vectorStoreManager.load();
-      console.log('Adding new documents to existing vector store...');
+      console.warn('Adding new documents to existing vector store...');
       await vectorStoreManager.addDocuments(allDocuments);
       await vectorStoreManager.save();
-      console.log('✓ Documents added to existing vector store!');
+      console.warn('✓ Documents added to existing vector store!');
     } else {
       // Create new vector store
-      console.log('Creating new vector store...');
+      console.warn('Creating new vector store...');
       await vectorStoreManager.createFromDocuments(allDocuments);
       await vectorStoreManager.save();
-      console.log('✓ New vector store created!');
+      console.warn('✓ New vector store created!');
     }
 
-    console.log('Ingestion complete!');
+    console.warn('Ingestion complete!');
 
     return NextResponse.json({
       message: 'Documents ingested successfully',
       documentsProcessed: allDocuments.length,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Ingestion error:', error);
+    const details = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
       {
         error: 'Failed to ingest documents',
-        details: error.message,
+        details,
       },
       { status: 500 }
     );
@@ -135,6 +136,7 @@ export async function GET() {
         : 'No documents ingested yet',
     });
   } catch (error) {
+    console.error('Failed to fetch ingestion status:', error);
     return NextResponse.json(
       { status: 'error', message: 'Failed to check status' },
       { status: 500 }

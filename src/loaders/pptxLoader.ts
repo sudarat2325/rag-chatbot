@@ -23,7 +23,7 @@ export class PptxLoader {
     const documents: Document[] = [];
 
     if (!fs.existsSync(this.dirPath)) {
-      console.log(`Directory ${this.dirPath} does not exist. Skipping PPTX loading.`);
+      console.warn(`Directory ${this.dirPath} does not exist. Skipping PPTX loading.`);
       return documents;
     }
 
@@ -32,14 +32,14 @@ export class PptxLoader {
       file.toLowerCase().endsWith('.pptx') && !file.startsWith('~$')
     );
 
-    console.log(`Found ${pptxFiles.length} PPTX files`);
+    console.warn(`Found ${pptxFiles.length} PPTX files`);
 
     for (const file of pptxFiles) {
       const filePath = path.join(this.dirPath, file);
       try {
         const docs = await PptxLoader.loadFile(filePath);
         documents.push(...docs);
-        console.log(`Loaded ${docs.length} chunks from ${file}`);
+        console.warn(`Loaded ${docs.length} chunks from ${file}`);
       } catch (error) {
         console.error(`Error loading PPTX file ${file}:`, error);
       }
@@ -86,7 +86,7 @@ export class PptxLoader {
       }
 
       if (!allText.trim()) {
-        console.log(`No text extracted from ${fileName}`);
+        console.warn(`No text extracted from ${fileName}`);
         return [];
       }
 
@@ -131,7 +131,7 @@ export class PptxLoader {
           const textElements: string[] = [];
 
           // Recursive function to extract text from nested objects
-          const extractText = (obj: any) => {
+          const extractText = (obj: unknown): void => {
             if (!obj) return;
 
             if (typeof obj === 'string') {
@@ -145,13 +145,14 @@ export class PptxLoader {
             }
 
             if (typeof obj === 'object') {
+              const record = obj as Record<string, unknown>;
               // Look for text elements
-              if (obj['a:t']) {
-                extractText(obj['a:t']);
+              if (record['a:t']) {
+                extractText(record['a:t']);
               }
 
               // Recursively search all properties
-              Object.values(obj).forEach((value) => extractText(value));
+              Object.values(record).forEach((value) => extractText(value));
             }
           };
 

@@ -22,7 +22,7 @@ export class DocxLoader {
     const documents: Document[] = [];
 
     if (!fs.existsSync(this.dirPath)) {
-      console.log(`Directory ${this.dirPath} does not exist. Skipping DOCX loading.`);
+      console.warn(`Directory ${this.dirPath} does not exist. Skipping DOCX loading.`);
       return documents;
     }
 
@@ -31,7 +31,7 @@ export class DocxLoader {
       file.toLowerCase().endsWith('.docx') && !file.startsWith('~$')
     );
 
-    console.log(`Found ${docxFiles.length} DOCX files`);
+    console.warn(`Found ${docxFiles.length} DOCX files`);
 
     for (const file of docxFiles) {
       const filePath = path.join(this.dirPath, file);
@@ -64,9 +64,9 @@ export class DocxLoader {
           );
 
           documents.push(...docs);
-          console.log(`Loaded ${docs.length} chunks from ${file}`);
+          console.warn(`Loaded ${docs.length} chunks from ${file}`);
         } else {
-          console.log(`Skipping empty DOCX file: ${file}`);
+          console.warn(`Skipping empty DOCX file: ${file}`);
         }
       } catch (error) {
         console.error(`Error loading DOCX file ${file}:`, error);

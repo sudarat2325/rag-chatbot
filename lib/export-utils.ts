@@ -23,7 +23,7 @@ export const exportToMarkdown = (messages: Message[]) => {
   let markdown = `# RAG Chatbot Conversation\n\n`;
   markdown += `**Date:** ${new Date().toLocaleString()}\n\n---\n\n`;
 
-  messages.forEach((message, index) => {
+  messages.forEach((message) => {
     const role = message.role === 'user' ? '👤 User' : '🤖 Assistant';
     markdown += `## ${role}\n\n`;
     markdown += `${message.content}\n\n`;
@@ -71,7 +71,7 @@ export const exportToPDF = (messages: Message[]) => {
   yPosition += 15;
 
   // Messages
-  messages.forEach((message, index) => {
+  messages.forEach((message) => {
     // Check if we need a new page
     if (yPosition > pageHeight - 40) {
       doc.addPage();

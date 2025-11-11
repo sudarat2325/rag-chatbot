@@ -14,7 +14,37 @@ interface Message {
   sources?: string[];
 }
 
-type Theme = 'light' | 'dark' | 'system';
+// Web Speech API types
+interface SpeechRecognitionType extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  onstart: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEventType) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  onend: (() => void) | null;
+}
+
+interface SpeechRecognitionEventType {
+  results: {
+    [key: number]: {
+      [key: number]: {
+        transcript: string;
+      };
+      isFinal: boolean;
+    };
+    length: number;
+  };
+}
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionType;
+
+interface SpeechRecognitionWindow extends Window {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
+}
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -26,7 +56,7 @@ export default function Home() {
   const [documentCount, setDocumentCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionType | null>(null);
 
   const suggestedQuestions = [
     "What are the main topics covered in these documents?",
@@ -129,10 +159,11 @@ export default function Home() {
 
   const initializeVoiceRecognition = () => {
     if (typeof window !== 'undefined') {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const win = window as SpeechRecognitionWindow;
+      const SpeechRecognitionCtor = win.SpeechRecognition || win.webkitSpeechRecognition;
 
-      if (SpeechRecognition) {
-        const recognition = new SpeechRecognition();
+      if (SpeechRecognitionCtor) {
+        const recognition = new SpeechRecognitionCtor();
         recognition.continuous = false;
         recognition.interimResults = false;
         recognition.lang = 'en-US';
@@ -142,13 +173,13 @@ export default function Home() {
           toast.success('Listening... Speak now');
         };
 
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: SpeechRecognitionEventType) => {
           const transcript = event.results[0][0].transcript;
           setInput(transcript);
           toast.success('Voice input captured');
         };
 
-        recognition.onerror = (event: any) => {
+        recognition.onerror = (event: { error: string }) => {
           console.error('Speech recognition error:', event.error);
           setIsListening(false);
           if (event.error === 'not-allowed') {

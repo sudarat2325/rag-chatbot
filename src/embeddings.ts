@@ -1,117 +1,101 @@
 import { Embeddings } from '@langchain/core/embeddings';
-import { ChatAnthropic } from '@langchain/anthropic';
+import { OpenAIEmbeddings } from '@langchain/openai';
+import { VoyageEmbeddings } from '@langchain/community/embeddings/voyage';
+import { HuggingFaceTransformersEmbeddings } from '@langchain/community/embeddings/hf_transformers';
 import { config } from './config';
 
 /**
- * Simple embeddings implementation using Claude's API
- * This creates embeddings by using Claude to generate semantic representations
+ * Embeddings Provider Types
+ * Configure via EMBEDDINGS_PROVIDER environment variable
  */
-export class SimpleEmbeddings extends Embeddings {
-  private model: ChatAnthropic;
-
-  constructor() {
-    super({});
-    this.model = new ChatAnthropic({
-      anthropicApiKey: config.anthropicApiKey,
-      modelName: 'claude-3-haiku-20240307', // Using Haiku for faster/cheaper embeddings
-      temperature: 0,
-    });
-  }
-
-  /**
-   * Generate embeddings for a list of documents
-   */
-  async embedDocuments(texts: string[]): Promise<number[][]> {
-    const embeddings: number[][] = [];
-
-    for (const text of texts) {
-      const embedding = await this.embedQuery(text);
-      embeddings.push(embedding);
-    }
-
-    return embeddings;
-  }
-
-  /**
-   * Generate embedding for a single query
-   */
-  async embedQuery(text: string): Promise<number[]> {
-    // Create a simple hash-based embedding for demo purposes
-    // In production, you should use proper embeddings like:
-    // - Voyage AI (Anthropic's recommended embeddings)
-    // - OpenAI embeddings
-    // - HuggingFace transformers
-
-    // For now, we'll create a simple fixed-size vector based on text characteristics
-    const embedding = new Array(384).fill(0);
-
-    // Simple feature extraction
-    const words = text.toLowerCase().split(/\s+/);
-    const chars = text.split('');
-
-    // Distribute values across the embedding space based on text features
-    for (let i = 0; i < words.length && i < 100; i++) {
-      const word = words[i];
-      const hash = this.simpleHash(word);
-      embedding[hash % 384] += 1 / Math.sqrt(words.length);
-    }
-
-    // Character-level features
-    for (let i = 0; i < chars.length && i < 200; i++) {
-      const charCode = chars[i].charCodeAt(0);
-      embedding[(charCode + i * 7) % 384] += 0.1 / Math.sqrt(chars.length);
-    }
-
-    // Normalize the embedding
-    const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
-    return embedding.map(val => magnitude > 0 ? val / magnitude : 0);
-  }
-
-  /**
-   * Simple hash function for strings
-   */
-  private simpleHash(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    return Math.abs(hash);
-  }
-}
+export type EmbeddingsProvider = 'openai' | 'voyage' | 'huggingface';
 
 /**
- * Get embeddings instance
- * You can replace this with better embeddings like:
- * - VoyageEmbeddings (requires Voyage API key)
- * - OpenAIEmbeddings (requires OpenAI API key)
- * - HuggingFaceTransformersEmbeddings (local, free)
+ * Get embeddings instance based on configuration
+ * Supports multiple providers for flexibility and performance
+ *
+ * Priority order (if EMBEDDINGS_PROVIDER not set):
+ * 1. OpenAI (if OPENAI_API_KEY exists)
+ * 2. Voyage AI (if VOYAGE_API_KEY exists)
+ * 3. HuggingFace (local, free, no API key needed)
  */
 export function getEmbeddings(): Embeddings {
-  // Using simple embeddings for demo
-  // For production, consider using:
-  // return new VoyageEmbeddings({ apiKey: process.env.VOYAGE_API_KEY });
-  // or
-  // return new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY });
+  const provider = (config.embeddingsProvider || '').toLowerCase() as EmbeddingsProvider;
 
-  return new SimpleEmbeddings();
+  try {
+    // Explicit provider selection
+    if (provider === 'openai' && config.openaiApiKey) {
+      return new OpenAIEmbeddings({
+        openAIApiKey: config.openaiApiKey,
+        modelName: config.openaiEmbeddingsModel,
+        batchSize: 512, // Batch for better performance
+        stripNewLines: true,
+      });
+    }
+
+    if (provider === 'voyage' && config.voyageApiKey) {
+      return new VoyageEmbeddings({
+        apiKey: config.voyageApiKey,
+        modelName: config.voyageEmbeddingsModel,
+        batchSize: 128,
+      });
+    }
+
+    if (provider === 'huggingface') {
+      return new HuggingFaceTransformersEmbeddings({
+        modelName: config.huggingfaceModel,
+      });
+    }
+
+    // Auto-detect based on available API keys
+    if (config.openaiApiKey) {
+      console.warn('📊 Using OpenAI embeddings (text-embedding-3-small)');
+      return new OpenAIEmbeddings({
+        openAIApiKey: config.openaiApiKey,
+        modelName: config.openaiEmbeddingsModel,
+        batchSize: 512,
+        stripNewLines: true,
+      });
+    }
+
+    if (config.voyageApiKey) {
+      console.warn('📊 Using Voyage AI embeddings (voyage-2)');
+      return new VoyageEmbeddings({
+        apiKey: config.voyageApiKey,
+        modelName: config.voyageEmbeddingsModel,
+        batchSize: 128,
+      });
+    }
+
+    // Fallback to local HuggingFace (free, no API key needed)
+    console.warn('📊 Using HuggingFace embeddings (local, free)');
+    console.warn('💡 For better performance, set OPENAI_API_KEY or VOYAGE_API_KEY in .env');
+    return new HuggingFaceTransformersEmbeddings({
+      modelName: config.huggingfaceModel,
+    });
+
+  } catch (error) {
+    console.error('❌ Error initializing embeddings:', error);
+    console.warn('⚠️  Falling back to HuggingFace embeddings...');
+    return new HuggingFaceTransformersEmbeddings({
+      modelName: 'Xenova/all-MiniLM-L6-v2',
+    });
+  }
 }
 
 /**
- * Instructions for better embeddings:
- *
- * 1. Voyage AI (Recommended for Claude):
- *    npm install @langchain/community
- *    import { VoyageEmbeddings } from '@langchain/community/embeddings/voyage';
- *    return new VoyageEmbeddings({ apiKey: process.env.VOYAGE_API_KEY });
- *
- * 2. OpenAI Embeddings:
- *    npm install @langchain/openai
- *    import { OpenAIEmbeddings } from '@langchain/openai';
- *    return new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY });
- *
- * 3. HuggingFace (Local, Free):
- *    npm install @xenova/transformers
- *    Use HuggingFaceTransformersEmbeddings from @langchain/community
+ * Get embeddings dimensions based on provider
  */
+export function getEmbeddingsDimensions(): number {
+  const provider = (config.embeddingsProvider || '').toLowerCase();
+
+  if (provider === 'openai' || config.openaiApiKey) {
+    return 1536; // text-embedding-3-small
+  }
+
+  if (provider === 'voyage' || config.voyageApiKey) {
+    return 1024; // voyage-2
+  }
+
+  return 384; // HuggingFace all-MiniLM-L6-v2
+}

@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import prisma from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
 import { calculateDistance, formatCurrency } from '@/lib/utils/helpers';
 import { VectorStoreManager } from '@/src/vectorStore';
 import { getEmbeddings } from '@/src/embeddings';
@@ -8,14 +9,84 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || '',
 });
 
+type RestaurantWithMenuItems = Prisma.RestaurantGetPayload<{
+  include: {
+    menuItems: {
+      where: { isAvailable: true },
+      take: 3,
+    },
+  },
+}>;
+
+type RestaurantWithDistance = RestaurantWithMenuItems & { distance?: number };
+
+type UserOrderSummary = Prisma.OrderGetPayload<{
+  include: {
+    restaurant: {
+      select: {
+        name: true,
+      },
+    },
+    items: {
+      include: {
+        menuItem: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    },
+    delivery: true,
+  },
+}>;
+
+type PopularMenuItem = Prisma.MenuItemGetPayload<{
+  include: {
+    restaurant: {
+      select: {
+        name: true,
+        rating: true,
+        deliveryFee: true,
+      },
+    },
+  },
+}>;
+
+type RagDocument = {
+  content: string;
+  source: string;
+  metadata: Record<string, unknown>;
+};
+
+type IntentType =
+  | 'search_restaurant'
+  | 'search_food'
+  | 'track_order'
+  | 'recommend'
+  | 'price_inquiry'
+  | 'general';
+
 interface ChatContext {
   userId?: string;
   userLocation?: {
     latitude: number;
     longitude: number;
   };
-  currentOrder?: any;
+  currentOrder?: UserOrderSummary | null;
 }
+
+type EnrichedContext = ChatContext & {
+  ragContext?: RagDocument[];
+  restaurants?: RestaurantWithDistance[];
+  userOrders?: UserOrderSummary[];
+  popularItems?: PopularMenuItem[];
+  intent?: IntentType;
+};
+
+type ClaudeMessage = {
+  role: 'user' | 'assistant';
+  content: string;
+};
 
 export class FoodDeliveryBot {
   private model: string;
@@ -43,9 +114,9 @@ export class FoodDeliveryBot {
       const exists = await this.vectorStore.exists();
       if (exists) {
         await this.vectorStore.load();
-        console.log('✅ RAG vector store loaded for Food Delivery Bot');
+        console.warn('✅ RAG vector store loaded for Food Delivery Bot');
       } else {
-        console.log('⚠️ Vector store not found. RAG disabled.');
+        console.warn('⚠️ Vector store not found. RAG disabled.');
         this.useRAG = false;
       }
     } catch (error) {
@@ -67,7 +138,7 @@ export class FoodDeliveryBot {
       const systemPrompt = this.buildSystemPrompt(enrichedContext);
 
       // Build conversation history
-      const messages: any[] = [];
+      const messages: ClaudeMessage[] = [];
 
       // Add chat history
       for (let i = 0; i < chatHistory.length; i++) {
@@ -91,16 +162,18 @@ export class FoodDeliveryBot {
         messages,
       });
 
-      const textContent = response.content.find((c) => c.type === 'text');
-      return textContent ? (textContent as any).text : 'ขออภัย ไม่สามารถตอบกลับได้ในขณะนี้';
+      const textContent = response.content.find(
+        (chunk): chunk is { type: 'text'; text: string } => chunk.type === 'text'
+      );
+      return textContent?.text ?? 'ขออภัย ไม่สามารถตอบกลับได้ในขณะนี้';
     } catch (error) {
       console.error('Food delivery bot error:', error);
       return 'ขออภัย เกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้ง';
     }
   }
 
-  private async enrichContext(message: string, context: ChatContext): Promise<any> {
-    const enriched: any = { ...context };
+  private async enrichContext(message: string, context: ChatContext): Promise<EnrichedContext> {
+    const enriched: EnrichedContext = { ...context };
 
     // Detect intent
     const intent = this.detectIntent(message);
@@ -156,14 +229,14 @@ export class FoodDeliveryBot {
     return enriched;
   }
 
-  private async searchFromRAG(query: string): Promise<any[]> {
+  private async searchFromRAG(query: string): Promise<RagDocument[]> {
     if (!this.vectorStore) return [];
 
     try {
       const results = await this.vectorStore.similaritySearch(query, 4);
       return results.map((doc) => ({
         content: doc.pageContent,
-        source: doc.metadata.fileName || doc.metadata.source || 'Unknown',
+        source: (doc.metadata.fileName as string) || (doc.metadata.source as string) || 'Unknown',
         metadata: doc.metadata,
       }));
     } catch (error) {
@@ -214,10 +287,13 @@ export class FoodDeliveryBot {
     return 'general';
   }
 
-  private async searchRestaurants(query: string, userLocation?: {
-    latitude: number;
-    longitude: number;
-  }): Promise<any[]> {
+  private async searchRestaurants(
+    _query: string,
+    userLocation?: {
+      latitude: number;
+      longitude: number;
+    }
+  ): Promise<RestaurantWithDistance[]> {
     try {
       const restaurants = await prisma.restaurant.findMany({
         where: {
@@ -256,7 +332,7 @@ export class FoodDeliveryBot {
     }
   }
 
-  private async getUserOrders(userId: string): Promise<any[]> {
+  private async getUserOrders(userId: string): Promise<UserOrderSummary[]> {
     try {
       const orders = await prisma.order.findMany({
         where: { customerId: userId },
@@ -288,7 +364,7 @@ export class FoodDeliveryBot {
     }
   }
 
-  private async getPopularItems(): Promise<any[]> {
+  private async getPopularItems(): Promise<PopularMenuItem[]> {
     try {
       const popularItems = await prisma.menuItem.findMany({
         where: {
@@ -314,7 +390,7 @@ export class FoodDeliveryBot {
     }
   }
 
-  private buildSystemPrompt(context: any): string {
+  private buildSystemPrompt(context: EnrichedContext): string {
     let prompt = `คุณคือ AI ผู้ช่วยอัจฉริยะสำหรับระบบสั่งอาหารออนไลน์ ชื่อว่า "FoodBot"
 
 ความสามารถของคุณ:
@@ -339,7 +415,7 @@ export class FoodDeliveryBot {
     // Add RAG context if available
     if (context.ragContext && context.ragContext.length > 0) {
       prompt += '\n\n## 📚 ข้อมูลจากฐานความรู้:\n';
-      context.ragContext.forEach((doc: any, i: number) => {
+      context.ragContext.forEach((doc, i) => {
         prompt += `\n### เอกสาร ${i + 1}: ${doc.source}\n`;
         prompt += `${doc.content}\n`;
       });
@@ -349,33 +425,33 @@ export class FoodDeliveryBot {
     // Add context data
     if (context.restaurants && context.restaurants.length > 0) {
       prompt += '\n\n## ร้านอาหารที่พบ:\n';
-      context.restaurants.forEach((r: any, i: number) => {
+      context.restaurants.forEach((r, i) => {
         prompt += `\n${i + 1}. ${r.name}
    - คะแนน: ${r.rating}/5 (${r.totalReviews} รีวิว)
    - ค่าส่ง: ${formatCurrency(r.deliveryFee)}
    - ระยะทาง: ${r.distance ? r.distance + ' กม.' : 'ไม่ระบุ'}
    - เวลาจัดส่งโดยประมาณ: ${r.estimatedTime || '30-45 นาที'}
-   - เมนูยอดนิยม: ${r.menuItems?.map((m: any) => m.name).join(', ') || 'ไม่มีข้อมูล'}
+   - เมนูยอดนิยม: ${r.menuItems?.map((m) => m.name).join(', ') || 'ไม่มีข้อมูล'}
 `;
       });
     }
 
     if (context.userOrders && context.userOrders.length > 0) {
       prompt += '\n\n## ออเดอร์ล่าสุดของลูกค้า:\n';
-      context.userOrders.forEach((o: any, i: number) => {
+      context.userOrders.forEach((o, i) => {
         const statusText = this.getStatusText(o.status);
         prompt += `\n${i + 1}. ออเดอร์ ${o.orderNumber}
    - ร้าน: ${o.restaurant.name}
    - สถานะ: ${statusText}
    - ยอดรวม: ${formatCurrency(o.total)}
-   - เมนู: ${o.items?.map((item: any) => `${item.menuItem.name} x${item.quantity}`).join(', ')}
+   - เมนู: ${o.items?.map((item) => `${item.menuItem.name} x${item.quantity}`).join(', ')}
 `;
       });
     }
 
     if (context.popularItems && context.popularItems.length > 0) {
       prompt += '\n\n## เมนูยอดนิยม:\n';
-      context.popularItems.forEach((item: any, i: number) => {
+      context.popularItems.forEach((item, i) => {
         prompt += `\n${i + 1}. ${item.name}
    - ร้าน: ${item.restaurant.name}
    - ราคา: ${formatCurrency(item.price)}

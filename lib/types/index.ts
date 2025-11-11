@@ -2,7 +2,7 @@
 export * from '@prisma/client';
 
 // API Response Types
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
@@ -34,6 +34,9 @@ export interface RestaurantWithDetails {
   deliveryFee: number;
   minimumOrder: number;
   distance?: number; // calculated distance from user
+  averagePrice?: number; // average price per dish
+  deliveryTime?: number; // estimated delivery time in minutes
+  popularityScore?: string | number;
 }
 
 export interface CreateRestaurantDTO {
@@ -112,7 +115,7 @@ export interface OrderItemDetails {
   };
   quantity: number;
   price: number;
-  customizations?: any;
+  customizations?: Record<string, unknown>;
 }
 
 export interface DeliveryDetails {
@@ -135,10 +138,11 @@ export interface CreateOrderDTO {
   items: {
     menuItemId: string;
     quantity: number;
-    customizations?: any;
+    customizations?: Record<string, unknown>;
     notes?: string;
   }[];
   paymentMethod: string;
+  promoCode?: string;
   notes?: string;
 }
 
@@ -146,7 +150,7 @@ export interface CreateOrderDTO {
 export interface CartItem {
   menuItem: MenuItemWithOptions;
   quantity: number;
-  customizations?: any;
+  customizations?: Record<string, unknown>;
   notes?: string;
 }
 
@@ -179,7 +183,7 @@ export interface NotificationData {
   title: string;
   message: string;
   orderId?: string;
-  data?: any;
+  data?: Record<string, unknown>;
 }
 
 // Driver Types

@@ -1,4 +1,4 @@
-// This is your Prisma schema file for Food Delivery System
+// This is your Prisma schema file for Food Delivery System with MongoDB
 // Learn more: https://pris.ly/d/prisma-schema
 
 generator client {
@@ -6,13 +6,13 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 // User Management
 model User {
-  id            String    @id @default(uuid())
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
   email         String    @unique
   password      String
   name          String
@@ -20,6 +20,10 @@ model User {
   role          UserRole  @default(CUSTOMER)
   avatar        String?
   isActive      Boolean   @default(true)
+
+  // Push Notifications
+  pushSubscription String? // JSON: web push subscription object
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -36,8 +40,12 @@ model User {
   deliveries    Delivery[]
   driverProfile DriverProfile?
 
-  @@index([email])
-  @@index([role])
+  // Chat messages
+  sentMessages     ChatMessage[] @relation("MessageSender")
+  receivedMessages ChatMessage[] @relation("MessageReceiver")
+
+  // Favorites
+  favorites     Favorite[]
 }
 
 enum UserRole {
@@ -48,8 +56,8 @@ enum UserRole {
 }
 
 model Address {
-  id          String   @id @default(uuid())
-  userId      String
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   label       String   // "Home", "Work", etc.
@@ -66,14 +74,12 @@ model Address {
 
   // Relations
   orders      Order[]
-
-  @@index([userId])
 }
 
 // Restaurant Management
 model Restaurant {
-  id              String    @id @default(uuid())
-  ownerId         String    @unique
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  ownerId         String    @unique @db.ObjectId
   owner           User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   name            String
@@ -115,15 +121,13 @@ model Restaurant {
   menuItems       MenuItem[]
   orders          Order[]
   reviews         Review[]
-
-  @@index([isActive, isOpen])
-  @@index([rating])
+  favorites       Favorite[]
 }
 
 // Menu Management
 model MenuItem {
-  id              String     @id @default(uuid())
-  restaurantId    String
+  id              String     @id @default(auto()) @map("_id") @db.ObjectId
+  restaurantId    String     @db.ObjectId
   restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   name            String
@@ -147,23 +151,20 @@ model MenuItem {
 
   // Relations
   orderItems      OrderItem[]
-
-  @@index([restaurantId])
-  @@index([isAvailable])
 }
 
 // Order Management
 model Order {
-  id              String      @id @default(uuid())
+  id              String      @id @default(auto()) @map("_id") @db.ObjectId
   orderNumber     String      @unique
 
-  customerId      String
-  customer        User        @relation(fields: [customerId], references: [id])
+  customerId      String      @db.ObjectId
+  customer        User?       @relation(fields: [customerId], references: [id])
 
-  restaurantId    String
+  restaurantId    String      @db.ObjectId
   restaurant      Restaurant  @relation(fields: [restaurantId], references: [id])
 
-  addressId       String
+  addressId       String      @db.ObjectId
   address         Address     @relation(fields: [addressId], references: [id])
 
   // Order Details
@@ -176,6 +177,9 @@ model Order {
   // Payment
   paymentMethod   PaymentMethod
   paymentStatus   PaymentStatus @default(PENDING)
+
+  // Promotion
+  promotionId     String?
 
   // Special Instructions
   notes           String?
@@ -195,11 +199,6 @@ model Order {
   delivery        Delivery?
   review          Review?
   notifications   Notification[]
-
-  @@index([customerId])
-  @@index([restaurantId])
-  @@index([status])
-  @@index([orderNumber])
 }
 
 enum OrderStatus {
@@ -230,11 +229,11 @@ enum PaymentStatus {
 }
 
 model OrderItem {
-  id              String    @id @default(uuid())
-  orderId         String
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  orderId         String    @db.ObjectId
   order           Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  menuItemId      String
+  menuItemId      String    @db.ObjectId
   menuItem        MenuItem  @relation(fields: [menuItemId], references: [id])
 
   quantity        Int
@@ -246,18 +245,15 @@ model OrderItem {
   notes           String?
 
   createdAt       DateTime  @default(now())
-
-  @@index([orderId])
-  @@index([menuItemId])
 }
 
 // Delivery Tracking
 model Delivery {
-  id              String         @id @default(uuid())
-  orderId         String         @unique
+  id              String         @id @default(auto()) @map("_id") @db.ObjectId
+  orderId         String         @unique @db.ObjectId
   order           Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  driverId        String?
+  driverId        String?        @db.ObjectId
   driver          User?          @relation(fields: [driverId], references: [id])
 
   status          DeliveryStatus @default(FINDING_DRIVER)
@@ -282,10 +278,6 @@ model Delivery {
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
-
-  @@index([orderId])
-  @@index([driverId])
-  @@index([status])
 }
 
 enum DeliveryStatus {
@@ -299,8 +291,8 @@ enum DeliveryStatus {
 }
 
 model DriverProfile {
-  id              String   @id @default(uuid())
-  userId          String   @unique
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String   @unique @db.ObjectId
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   vehicleType     String   // "Motorcycle", "Car", "Bicycle"
@@ -313,28 +305,51 @@ model DriverProfile {
   // Stats
   rating          Float    @default(5.0)
   totalDeliveries Int      @default(0)
+  totalEarnings   Float    @default(0)
+
+  // Current Location (for real-time tracking)
+  currentLatitude  Float?
+  currentLongitude Float?
+  lastLocationUpdate DateTime?
 
   // Documents
   licenseNumber   String?
   licenseExpiry   DateTime?
 
+  // Emergency Contact
+  emergencyContact String?
+  emergencyPhone   String?
+
+  // Address
+  address         String?
+  district        String?
+  province        String?
+  postalCode      String?
+
+  // Bank Information
+  bankName        String?
+  bankAccount     String?
+  bankAccountName String?
+
+  // Verification Status
+  isVerified      Boolean  @default(false)
+  verifiedAt      DateTime?
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-
-  @@index([isOnline, isAvailable])
 }
 
 // Review & Rating System
 model Review {
-  id              String   @id @default(uuid())
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
 
-  orderId         String   @unique
+  orderId         String   @unique @db.ObjectId
   order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  customerId      String
+  customerId      String   @db.ObjectId
   customer        User     @relation(fields: [customerId], references: [id])
 
-  restaurantId    String
+  restaurantId    String   @db.ObjectId
   restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   // Ratings (1-5)
@@ -354,19 +369,15 @@ model Review {
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-
-  @@index([restaurantId])
-  @@index([customerId])
-  @@index([overallRating])
 }
 
 // Notification System
 model Notification {
-  id              String           @id @default(uuid())
-  userId          String
+  id              String           @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String           @db.ObjectId
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  orderId         String?
+  orderId         String?          @db.ObjectId
   order           Order?           @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   type            NotificationType
@@ -380,9 +391,6 @@ model Notification {
   pushedAt        DateTime?
 
   createdAt       DateTime         @default(now())
-
-  @@index([userId, isRead])
-  @@index([createdAt])
 }
 
 enum NotificationType {
@@ -400,7 +408,7 @@ enum NotificationType {
 
 // Promotion System
 model Promotion {
-  id              String    @id @default(uuid())
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
 
   code            String    @unique
   name            String
@@ -422,9 +430,6 @@ model Promotion {
 
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-
-  @@index([code])
-  @@index([isActive])
 }
 
 enum PromotionType {
@@ -435,7 +440,7 @@ enum PromotionType {
 
 // Analytics & Statistics
 model DailyStats {
-  id              String   @id @default(uuid())
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
   date            DateTime @unique
 
   totalOrders     Int      @default(0)
@@ -449,6 +454,61 @@ model DailyStats {
   avgDeliveryTime Float    @default(0)
 
   createdAt       DateTime @default(now())
+}
 
-  @@index([date])
+// Chat Messages
+model ChatMessage {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId      String
+  senderId     String   @db.ObjectId
+  receiverId   String   @db.ObjectId
+  message      String
+  messageType  MessageType @default(TEXT)
+  imageUrl     String?
+  fileUrl      String?
+  isRead       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  // Relations
+  sender       User     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver     User     @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+}
+
+// User Preferences
+model UserPreferences {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @unique
+
+  // Notification preferences
+  orderUpdates      Boolean @default(true)
+  promotions        Boolean @default(true)
+  newRestaurants    Boolean @default(false)
+  newsletter        Boolean @default(false)
+
+  // App preferences
+  darkMode          Boolean @default(false)
+  language          String  @default("th")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Favorite Restaurants
+model Favorite {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @db.ObjectId
+  restaurantId String   @db.ObjectId
+  createdAt    DateTime @default(now())
+
+  // Relations
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, restaurantId])
 }

@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FoodDeliveryBot } from '@/lib/services/foodDeliveryBot';
 import type { ApiResponse } from '@/lib/types';
 
+interface ChatContext {
+  userId?: string;
+  userLocation?: {
+    latitude: number;
+    longitude: number;
+  };
+}
+
 // POST /api/chatbot - Chat with food delivery assistant
 export async function POST(request: NextRequest) {
   try {
@@ -22,7 +30,7 @@ export async function POST(request: NextRequest) {
     const bot = new FoodDeliveryBot();
 
     // Build context
-    const context: any = {};
+    const context: ChatContext = {};
     if (userId) {
       context.userId = userId;
     }

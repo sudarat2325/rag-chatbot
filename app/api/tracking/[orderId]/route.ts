@@ -2,6 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import type { ApiResponse } from '@/lib/types';
 
+interface UpdateTrackingBody {
+  latitude: number;
+  longitude: number;
+  driverId?: string;
+}
+
+const emitters = globalThis as typeof globalThis & {
+  emitDeliveryUpdate?: (
+    orderId: string,
+    location: { latitude: number; longitude: number },
+    driverInfo?: { id: string; name: string; phone: string }
+  ) => void;
+};
+
 // GET /api/tracking/[orderId] - Get delivery tracking info
 export async function GET(
   request: NextRequest,
@@ -75,9 +89,12 @@ export async function PATCH(
 ) {
   try {
     const { orderId } = await params;
-    const { latitude, longitude, driverId } = await request.json();
+    const { latitude, longitude, driverId } = (await request.json()) as UpdateTrackingBody;
 
-    if (!latitude || !longitude) {
+    const latitudeMissing = latitude === undefined || latitude === null || Number.isNaN(latitude);
+    const longitudeMissing = longitude === undefined || longitude === null || Number.isNaN(longitude);
+
+    if (latitudeMissing || longitudeMissing) {
       return NextResponse.json(
         {
           success: false,
@@ -94,9 +111,33 @@ export async function PATCH(
         currentLongitude: longitude,
         ...(driverId && { driverId }),
       },
+      include: {
+        driver: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+          },
+        },
+      },
     });
 
-    // TODO: Emit WebSocket event for real-time update
+    // Emit Socket.IO event for real-time tracking update
+    try {
+      emitters.emitDeliveryUpdate?.(
+        orderId,
+        { latitude, longitude },
+        delivery.driver
+          ? {
+              id: delivery.driver.id,
+              name: delivery.driver.name,
+              phone: delivery.driver.phone || '',
+            }
+          : undefined
+      );
+    } catch (socketError) {
+      console.error('❌ Failed to emit Socket.IO event:', socketError);
+    }
 
     const response: ApiResponse = {
       success: true,

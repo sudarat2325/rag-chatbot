@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { isRestaurantOpen } from '@/lib/utils/helpers';
 import type { ApiResponse } from '@/lib/types';
+import type { MenuItem, Prisma } from '@prisma/client';
 
 // GET /api/restaurants/[id] - Get restaurant details
 export async function GET(
@@ -54,11 +55,12 @@ export async function GET(
     const isCurrentlyOpen = restaurant.isOpen && isRestaurantOpen(restaurant.operatingHours || undefined);
 
     // Group menu items by category
-    const menuByCategory = restaurant.menuItems.reduce((acc: any, item) => {
-      if (!acc[item.category]) {
-        acc[item.category] = [];
+    const menuByCategory = restaurant.menuItems.reduce<Record<string, MenuItem[]>>((acc, item) => {
+      const categoryKey = item.category || 'อื่นๆ';
+      if (!acc[categoryKey]) {
+        acc[categoryKey] = [];
       }
-      acc[item.category].push(item);
+      acc[categoryKey].push(item);
       return acc;
     }, {});
 
@@ -89,14 +91,15 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const body = await request.json();
+    type RestaurantUpdatePayload = Prisma.RestaurantUpdateInput & Record<string, unknown>;
+    const body = (await request.json()) as RestaurantUpdatePayload;
 
     // Remove fields that shouldn't be updated directly
     const { id: _, ownerId: __, createdAt: ___, updatedAt: ____, ...updateData } = body;
 
     const restaurant = await prisma.restaurant.update({
       where: { id },
-      data: updateData,
+      data: updateData as Prisma.RestaurantUpdateInput,
     });
 
     const response: ApiResponse = {
@@ -125,7 +128,7 @@ export async function DELETE(
     const { id } = await params;
 
     // Soft delete - just deactivate
-    const restaurant = await prisma.restaurant.update({
+    await prisma.restaurant.update({
       where: { id },
       data: { isActive: false },
     });

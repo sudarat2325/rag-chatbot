@@ -22,7 +22,7 @@ export class XlsxLoader {
     const documents: Document[] = [];
 
     if (!fs.existsSync(this.dirPath)) {
-      console.log(`Directory ${this.dirPath} does not exist. Skipping Excel loading.`);
+      console.warn(`Directory ${this.dirPath} does not exist. Skipping Excel loading.`);
       return documents;
     }
 
@@ -32,14 +32,14 @@ export class XlsxLoader {
       return (lower.endsWith('.xlsx') || lower.endsWith('.xls')) && !file.startsWith('~$');
     });
 
-    console.log(`Found ${excelFiles.length} Excel files`);
+    console.warn(`Found ${excelFiles.length} Excel files`);
 
     for (const file of excelFiles) {
       const filePath = path.join(this.dirPath, file);
       try {
         const docs = await XlsxLoader.loadFile(filePath);
         documents.push(...docs);
-        console.log(`Loaded ${docs.length} chunks from ${file}`);
+        console.warn(`Loaded ${docs.length} chunks from ${file}`);
       } catch (error) {
         console.error(`Error loading Excel file ${file}:`, error);
       }
@@ -62,23 +62,23 @@ export class XlsxLoader {
         const worksheet = workbook.Sheets[sheetName];
 
         // Convert sheet to JSON for easier processing
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        const jsonData = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1 });
 
         // Convert to text format
         let text = `Sheet: ${sheetName}\n\n`;
 
         // Get headers (first row)
-        const headers = jsonData[0] as any[];
-        if (headers && headers.length > 0) {
-          text += headers.join(' | ') + '\n';
+        const headers = Array.isArray(jsonData[0]) ? jsonData[0] : [];
+        if (headers.length > 0) {
+          text += headers.map((header) => String(header ?? '')).join(' | ') + '\n';
           text += headers.map(() => '---').join(' | ') + '\n';
         }
 
         // Add data rows
         for (let i = 1; i < jsonData.length; i++) {
-          const row = jsonData[i] as any[];
-          if (row && row.length > 0) {
-            text += row.map((cell) => (cell !== null && cell !== undefined ? cell : '')).join(' | ') + '\n';
+          const row = jsonData[i];
+          if (Array.isArray(row) && row.length > 0) {
+            text += row.map((cell) => String(cell ?? '')).join(' | ') + '\n';
           }
         }
 

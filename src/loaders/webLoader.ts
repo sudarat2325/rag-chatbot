@@ -20,7 +20,7 @@ export class WebDocumentLoader {
    */
   async loadURL(url: string): Promise<Document[]> {
     try {
-      console.log(`Loading URL: ${url}`);
+      console.warn(`Loading URL: ${url}`);
       const loader = new CheerioWebBaseLoader(url);
       const docs = await loader.load();
 
@@ -33,7 +33,7 @@ export class WebDocumentLoader {
       // Split documents into chunks
       const splitDocs = await this.textSplitter.splitDocuments(docs);
 
-      console.log(`✓ Loaded ${splitDocs.length} chunks from ${url}`);
+      console.warn(`✓ Loaded ${splitDocs.length} chunks from ${url}`);
       return splitDocs;
     } catch (error) {
       console.error(`Error loading URL ${url}:`, error);
@@ -45,7 +45,7 @@ export class WebDocumentLoader {
    * Load content from multiple URLs
    */
   async loadURLs(urls: string[]): Promise<Document[]> {
-    console.log(`Loading ${urls.length} URL(s)...`);
+    console.warn(`Loading ${urls.length} URL(s)...`);
 
     const allDocs: Document[] = [];
     for (const url of urls) {
@@ -53,7 +53,7 @@ export class WebDocumentLoader {
         const docs = await this.loadURL(url);
         allDocs.push(...docs);
       } catch (error) {
-        console.error(`Skipping ${url} due to error`);
+        console.error(`Skipping ${url} due to error`, error);
       }
     }
 
@@ -72,7 +72,7 @@ export class WebDocumentLoader {
         .filter(line => line && !line.startsWith('#') && line.startsWith('http'));
 
       if (urls.length === 0) {
-        console.log(`No valid URLs found in ${filePath}`);
+        console.warn(`No valid URLs found in ${filePath}`);
         return [];
       }
 
@@ -94,7 +94,7 @@ export class WebDocumentLoader {
       await fs.mkdir(config.webCachePath, { recursive: true });
       await fs.writeFile(filePath, content, 'utf-8');
 
-      console.log(`✓ Cached content to ${fileName}`);
+      console.warn(`✓ Cached content to ${fileName}`);
     } catch (error) {
       console.error('Error caching web content:', error);
     }

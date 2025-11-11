@@ -1,0 +1,614 @@
+openapi: 3.0.3
+info:
+  title: Food Delivery System API
+  description: |
+    RESTful API for Food Delivery System with RAG Chatbot
+
+    ## Features
+    - User authentication & authorization
+    - Restaurant & menu management
+    - Order processing & tracking
+    - Real-time delivery tracking
+    - Push notifications
+    - Chat messaging
+    - RAG-powered chatbot
+
+    ## Base URL
+    - Development: `http://localhost:3000`
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@fooddelivery.com
+
+servers:
+  - url: http://localhost:3000
+    description: Development server
+
+tags:
+  - name: Authentication
+    description: User authentication endpoints
+  - name: Users
+    description: User management
+  - name: Restaurants
+    description: Restaurant operations
+  - name: Menu
+    description: Menu items
+  - name: Orders
+    description: Order management
+  - name: Deliveries
+    description: Delivery tracking
+  - name: Drivers
+    description: Driver operations
+  - name: Notifications
+    description: Push notifications
+  - name: Reviews
+    description: Restaurant reviews
+  - name: Addresses
+    description: User addresses
+  - name: Favorites
+    description: Favorite restaurants
+  - name: Chat
+    description: Chat messaging
+  - name: Chatbot
+    description: RAG-powered chatbot
+
+paths:
+  /api/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: customer@example.com
+                password:
+                  type: string
+                  example: password123
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      email:
+                        type: string
+                      name:
+                        type: string
+                      role:
+                        type: string
+                        enum: [CUSTOMER, RESTAURANT_OWNER, DRIVER, ADMIN]
+
+  /api/auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - name
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                name:
+                  type: string
+                phone:
+                  type: string
+      responses:
+        '201':
+          description: User registered successfully
+
+  /api/restaurants:
+    get:
+      tags:
+        - Restaurants
+      summary: Get all restaurants
+      parameters:
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+        - name: isOpen
+          in: query
+          schema:
+            type: boolean
+        - name: ownerId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of restaurants
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Restaurant'
+
+  /api/restaurants/{id}:
+    get:
+      tags:
+        - Restaurants
+      summary: Get restaurant by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Restaurant details
+
+  /api/menu:
+    get:
+      tags:
+        - Menu
+      summary: Get menu items
+      parameters:
+        - name: restaurantId
+          in: query
+          schema:
+            type: string
+        - name: menuItemId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of menu items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MenuItem'
+
+  /api/orders:
+    get:
+      tags:
+        - Orders
+      summary: Get orders
+      parameters:
+        - name: customerId
+          in: query
+          schema:
+            type: string
+        - name: restaurantId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of orders
+
+    post:
+      tags:
+        - Orders
+      summary: Create new order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrder'
+      responses:
+        '201':
+          description: Order created successfully
+
+  /api/orders/{orderId}:
+    patch:
+      tags:
+        - Orders
+      summary: Update order status
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [PENDING, ACCEPTED, PREPARING, READY, PICKED_UP, ON_THE_WAY, DELIVERED, CANCELLED, REJECTED]
+      responses:
+        '200':
+          description: Order updated
+
+  /api/deliveries:
+    get:
+      tags:
+        - Deliveries
+      summary: Get deliveries
+      parameters:
+        - name: driverId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of deliveries
+
+    post:
+      tags:
+        - Deliveries
+      summary: Assign driver to delivery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deliveryId:
+                  type: string
+                driverId:
+                  type: string
+      responses:
+        '200':
+          description: Driver assigned
+
+  /api/deliveries/{id}:
+    patch:
+      tags:
+        - Deliveries
+      summary: Update delivery status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                latitude:
+                  type: number
+                longitude:
+                  type: number
+      responses:
+        '200':
+          description: Delivery updated
+
+  /api/notifications:
+    get:
+      tags:
+        - Notifications
+      summary: Get user notifications
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: List of notifications
+
+  /api/reviews:
+    get:
+      tags:
+        - Reviews
+      summary: Get reviews
+      parameters:
+        - name: restaurantId
+          in: query
+          schema:
+            type: string
+        - name: customerId
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of reviews
+
+    post:
+      tags:
+        - Reviews
+      summary: Create review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderId:
+                  type: string
+                customerId:
+                  type: string
+                restaurantId:
+                  type: string
+                foodRating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                deliveryRating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                overallRating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                comment:
+                  type: string
+      responses:
+        '201':
+          description: Review created
+
+  /api/addresses:
+    get:
+      tags:
+        - Addresses
+      summary: Get user addresses
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of addresses
+
+    post:
+      tags:
+        - Addresses
+      summary: Create new address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                label:
+                  type: string
+                fullAddress:
+                  type: string
+                latitude:
+                  type: number
+                longitude:
+                  type: number
+                isDefault:
+                  type: boolean
+      responses:
+        '201':
+          description: Address created
+
+  /api/favorites:
+    get:
+      tags:
+        - Favorites
+      summary: Get user favorites
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of favorite restaurants
+
+    post:
+      tags:
+        - Favorites
+      summary: Add restaurant to favorites
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                restaurantId:
+                  type: string
+      responses:
+        '201':
+          description: Favorite added
+
+  /api/chat/messages:
+    get:
+      tags:
+        - Chat
+      summary: Get chat messages
+      parameters:
+        - name: orderId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of messages
+
+    post:
+      tags:
+        - Chat
+      summary: Send chat message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderId:
+                  type: string
+                senderId:
+                  type: string
+                receiverId:
+                  type: string
+                message:
+                  type: string
+      responses:
+        '201':
+          description: Message sent
+
+  /api/chatbot:
+    post:
+      tags:
+        - Chatbot
+      summary: Ask chatbot (RAG)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  example: แนะนำร้านอาหารหน่อย
+      responses:
+        '200':
+          description: Chatbot response
+
+components:
+  schemas:
+    Restaurant:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        rating:
+          type: number
+        deliveryFee:
+          type: number
+        minimumOrder:
+          type: number
+        estimatedTime:
+          type: string
+        isOpen:
+          type: boolean
+
+    MenuItem:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        category:
+          type: string
+        isAvailable:
+          type: boolean
+
+    CreateOrder:
+      type: object
+      required:
+        - customerId
+        - restaurantId
+        - addressId
+        - items
+        - subtotal
+        - deliveryFee
+        - total
+        - paymentMethod
+      properties:
+        customerId:
+          type: string
+        restaurantId:
+          type: string
+        addressId:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              menuItemId:
+                type: string
+              quantity:
+                type: integer
+              price:
+                type: number
+        subtotal:
+          type: number
+        deliveryFee:
+          type: number
+        total:
+          type: number
+        paymentMethod:
+          type: string
+          enum: [CASH, CREDIT_CARD, DEBIT_CARD, MOBILE_BANKING, PROMPTPAY]
+        notes:
+          type: string

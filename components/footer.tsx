@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Bot, Github, Heart } from 'lucide-react';
+import { Bot, Heart } from 'lucide-react';
 
 export function Footer() {
   return (

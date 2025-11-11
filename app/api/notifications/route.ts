@@ -1,6 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import type { ApiResponse } from '@/lib/types';
+import { sendPushNotification } from '@/lib/services/notificationService';
+import { Prisma, NotificationType } from '@prisma/client';
+
+interface CreateNotificationBody {
+  userId: string;
+  orderId?: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+}
+
+interface UpdateNotificationBody {
+  notificationIds?: string[];
+  notificationId?: string;
+  userId?: string;
+  markAllRead?: boolean;
+}
 
 // GET /api/notifications - Get user notifications
 export async function GET(request: NextRequest) {
@@ -20,7 +37,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const where: any = { userId };
+    const where: Prisma.NotificationWhereInput = { userId };
 
     if (unreadOnly) {
       where.isRead = false;
@@ -70,7 +87,7 @@ export async function GET(request: NextRequest) {
 // POST /api/notifications - Create notification (internal use)
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as CreateNotificationBody;
     const { userId, orderId, type, title, message } = body;
 
     if (!userId || !type || !title || !message) {
@@ -93,7 +110,54 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // TODO: Send push notification
+    // Send push notification if user has push subscriptions
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { pushSubscription: true },
+      });
+
+      if (user?.pushSubscription) {
+        await sendPushNotification(user.pushSubscription, {
+          title,
+          message,
+          data: {
+            notificationId: notification.id,
+            orderId,
+            type,
+          },
+        });
+      } else {
+        console.warn(`📱 No push subscription for user ${userId}`);
+      }
+    } catch (pushError) {
+      // Log error but don't fail the notification creation
+      console.error('Failed to send push notification:', pushError);
+    }
+
+    // Emit Socket.IO event for real-time notification
+    try {
+      const emitUserNotification = (
+        globalThis as typeof globalThis & {
+          emitUserNotification?: (
+            userId: string,
+            notification: Record<string, unknown>
+          ) => void;
+        }
+      ).emitUserNotification;
+
+      if (emitUserNotification) {
+        emitUserNotification(userId, {
+          id: notification.id,
+          type,
+          title,
+          message,
+          data: { orderId },
+        });
+      }
+    } catch (socketError) {
+      console.error('Failed to emit Socket.IO event:', socketError);
+    }
 
     const response: ApiResponse = {
       success: true,
@@ -114,12 +178,19 @@ export async function POST(request: NextRequest) {
 // PATCH /api/notifications - Mark notifications as read
 export async function PATCH(request: NextRequest) {
   try {
-    const { notificationIds, userId, markAllRead } = await request.json();
+    const { notificationIds, notificationId, userId, markAllRead } =
+      (await request.json()) as UpdateNotificationBody;
 
     if (markAllRead && userId) {
       // Mark all notifications as read for user
       await prisma.notification.updateMany({
         where: { userId },
+        data: { isRead: true },
+      });
+    } else if (notificationId) {
+      // Mark single notification as read
+      await prisma.notification.update({
+        where: { id: notificationId },
         data: { isRead: true },
       });
     } else if (notificationIds && Array.isArray(notificationIds)) {
@@ -151,6 +222,42 @@ export async function PATCH(request: NextRequest) {
     const response: ApiResponse = {
       success: false,
       error: 'Failed to update notifications',
+    };
+    return NextResponse.json(response, { status: 500 });
+  }
+}
+
+// DELETE /api/notifications - Delete notification
+export async function DELETE(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const notificationId = searchParams.get('notificationId');
+
+    if (!notificationId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'notificationId is required',
+        } as ApiResponse,
+        { status: 400 }
+      );
+    }
+
+    await prisma.notification.delete({
+      where: { id: notificationId },
+    });
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'Notification deleted',
+    };
+
+    return NextResponse.json(response);
+  } catch (error) {
+    console.error('Error deleting notification:', error);
+    const response: ApiResponse = {
+      success: false,
+      error: 'Failed to delete notification',
     };
     return NextResponse.json(response, { status: 500 });
   }

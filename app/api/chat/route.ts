@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { VectorStoreManager } from '@/src/vectorStore';
 import { RAGChain } from '@/src/chains';
 import { getEmbeddings } from '@/src/embeddings';
-import { config } from '@/src/config';
 
 // Initialize services (reuse across requests)
 let vectorStoreManager: VectorStoreManager | null = null;
@@ -56,10 +55,10 @@ export async function POST(req: NextRequest) {
       answer: result.answer,
       sources: uniqueSources,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Chat API error:', error);
 
-    if (error.message?.includes('Vector store not found')) {
+    if (error instanceof Error && error.message?.includes('Vector store not found')) {
       return NextResponse.json(
         {
           error: 'Knowledge base not initialized. Please upload documents first.',
@@ -89,6 +88,7 @@ export async function GET() {
         : 'Please run document ingestion first',
     });
   } catch (error) {
+    console.error('Chat health check failed:', error);
     return NextResponse.json(
       { status: 'error', message: 'Failed to check status' },
       { status: 500 }

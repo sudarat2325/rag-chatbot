@@ -18,24 +18,24 @@ export function initializeSocket(httpServer: HTTPServer) {
   });
 
   io.on('connection', (socket) => {
-    console.log('Client connected:', socket.id);
+    console.warn('Client connected:', socket.id);
 
     // Join room for specific user
     socket.on('join:user', (userId: string) => {
       socket.join(`user:${userId}`);
-      console.log(`User ${userId} joined their room`);
+      console.warn(`User ${userId} joined their room`);
     });
 
     // Join room for specific order
     socket.on('join:order', (orderId: string) => {
       socket.join(`order:${orderId}`);
-      console.log(`Client joined order room: ${orderId}`);
+      console.warn(`Client joined order room: ${orderId}`);
     });
 
     // Join room for restaurant
     socket.on('join:restaurant', (restaurantId: string) => {
       socket.join(`restaurant:${restaurantId}`);
-      console.log(`Client joined restaurant room: ${restaurantId}`);
+      console.warn(`Client joined restaurant room: ${restaurantId}`);
     });
 
     // Driver location update
@@ -85,7 +85,7 @@ export function initializeSocket(httpServer: HTTPServer) {
     });
 
     socket.on('disconnect', () => {
-      console.log('Client disconnected:', socket.id);
+      console.warn('Client disconnected:', socket.id);
     });
   });
 
@@ -100,7 +100,7 @@ export function getIO(): SocketIOServer {
 }
 
 // Helper functions to emit events
-export function emitOrderUpdate(orderId: string, data: any) {
+export function emitOrderUpdate(orderId: string, data: unknown) {
   if (io) {
     io.to(`order:${orderId}`).emit(SocketEvent.ORDER_UPDATED, data);
   }
@@ -116,7 +116,7 @@ export function emitOrderStatusChange(orderId: string, status: string) {
   }
 }
 
-export function emitNotification(userId: string, notification: any) {
+export function emitNotification(userId: string, notification: unknown) {
   if (io) {
     io.to(`user:${userId}`).emit(SocketEvent.NOTIFICATION_NEW, notification);
   }
@@ -134,7 +134,7 @@ export function emitDriverLocation(orderId: string, location: {
   }
 }
 
-export function emitToRestaurant(restaurantId: string, event: string, data: any) {
+export function emitToRestaurant(restaurantId: string, event: string, data: unknown) {
   if (io) {
     io.to(`restaurant:${restaurantId}`).emit(event, data);
   }

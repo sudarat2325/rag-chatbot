@@ -10,6 +10,9 @@ interface DocumentInfo {
   path: string;
 }
 
+const isNodeError = (error: unknown): error is NodeJS.ErrnoException =>
+  typeof error === 'object' && error !== null && 'code' in error;
+
 async function getDocuments(dirPath: string, type: string): Promise<DocumentInfo[]> {
   try {
     const files = await fs.readdir(dirPath);
@@ -95,10 +98,10 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({
       message: 'Document deleted successfully',
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error deleting document:', error);
 
-    if (error.code === 'ENOENT') {
+    if (isNodeError(error) && error.code === 'ENOENT') {
       return NextResponse.json(
         { error: 'Document not found' },
         { status: 404 }

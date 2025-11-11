@@ -1,6 +1,6 @@
 import { ChatAnthropic } from '@langchain/anthropic';
 import { PromptTemplate } from '@langchain/core/prompts';
-import { RunnableSequence, RunnablePassthrough } from '@langchain/core/runnables';
+import { RunnableSequence } from '@langchain/core/runnables';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { Document } from '@langchain/core/documents';
 import { config } from '../config';

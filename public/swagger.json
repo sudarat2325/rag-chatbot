@@ -1,0 +1,761 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Food Delivery & RAG Chatbot API",
+    "version": "1.0.0",
+    "description": "API documentation for Food Delivery System with RAG Chatbot and Driver Management",
+    "contact": {
+      "name": "API Support",
+      "email": "support@fooddelivery.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Development server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Authentication",
+      "description": "User authentication endpoints"
+    },
+    {
+      "name": "Users",
+      "description": "User management endpoints"
+    },
+    {
+      "name": "Restaurants",
+      "description": "Restaurant management endpoints"
+    },
+    {
+      "name": "Menu",
+      "description": "Menu item management endpoints"
+    },
+    {
+      "name": "Orders",
+      "description": "Order management endpoints"
+    },
+    {
+      "name": "Drivers",
+      "description": "Driver management endpoints"
+    },
+    {
+      "name": "Deliveries",
+      "description": "Delivery tracking endpoints"
+    },
+    {
+      "name": "Reviews",
+      "description": "Review and rating endpoints"
+    },
+    {
+      "name": "Notifications",
+      "description": "Notification management endpoints"
+    },
+    {
+      "name": "Chatbot",
+      "description": "RAG chatbot endpoints"
+    },
+    {
+      "name": "Documents",
+      "description": "Document management for RAG system"
+    }
+  ],
+  "paths": {
+    "/api/auth/register": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Register a new user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password", "name"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 6
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User registered successfully"
+          },
+          "400": {
+            "description": "Invalid input or email already exists"
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Login user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string",
+                          "enum": ["CUSTOMER", "RESTAURANT_OWNER", "DRIVER", "ADMIN"]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials"
+          }
+        }
+      }
+    },
+    "/api/drivers": {
+      "get": {
+        "tags": ["Drivers"],
+        "summary": "Get driver profile",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "User ID to get driver profile"
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Driver profile ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Driver profile retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DriverProfile"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Driver not found"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Drivers"],
+        "summary": "Create driver profile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["userId", "vehicleType", "vehiclePlate", "licenseNumber", "licenseExpiry"],
+                "properties": {
+                  "userId": {
+                    "type": "string"
+                  },
+                  "vehicleType": {
+                    "type": "string",
+                    "enum": ["Motorcycle", "Car", "Bicycle"]
+                  },
+                  "vehiclePlate": {
+                    "type": "string"
+                  },
+                  "licenseNumber": {
+                    "type": "string"
+                  },
+                  "licenseExpiry": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "emergencyContact": {
+                    "type": "string"
+                  },
+                  "emergencyPhone": {
+                    "type": "string"
+                  },
+                  "address": {
+                    "type": "string"
+                  },
+                  "district": {
+                    "type": "string"
+                  },
+                  "province": {
+                    "type": "string"
+                  },
+                  "postalCode": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Driver profile created successfully"
+          },
+          "400": {
+            "description": "Invalid input or driver already exists"
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Drivers"],
+        "summary": "Update driver profile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["userId"],
+                "properties": {
+                  "userId": {
+                    "type": "string"
+                  },
+                  "vehicleType": {
+                    "type": "string"
+                  },
+                  "vehiclePlate": {
+                    "type": "string"
+                  },
+                  "isOnline": {
+                    "type": "boolean"
+                  },
+                  "isAvailable": {
+                    "type": "boolean"
+                  },
+                  "currentLatitude": {
+                    "type": "number"
+                  },
+                  "currentLongitude": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Driver profile updated successfully"
+          },
+          "400": {
+            "description": "Invalid input"
+          }
+        }
+      }
+    },
+    "/api/restaurants": {
+      "get": {
+        "tags": ["Restaurants"],
+        "summary": "Get all restaurants",
+        "parameters": [
+          {
+            "name": "ownerId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by owner ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Restaurants retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Restaurant"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Restaurants"],
+        "summary": "Create a new restaurant",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["ownerId", "name", "phone", "address", "latitude", "longitude"],
+                "properties": {
+                  "ownerId": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "address": {
+                    "type": "string"
+                  },
+                  "latitude": {
+                    "type": "number"
+                  },
+                  "longitude": {
+                    "type": "number"
+                  },
+                  "categories": {
+                    "type": "string"
+                  },
+                  "deliveryFee": {
+                    "type": "number"
+                  },
+                  "minimumOrder": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Restaurant created successfully"
+          },
+          "400": {
+            "description": "Invalid input"
+          }
+        }
+      }
+    },
+    "/api/orders": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "Get orders",
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "restaurantId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Orders retrieved successfully"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Orders"],
+        "summary": "Create a new order",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["customerId", "restaurantId", "addressId", "items", "paymentMethod"],
+                "properties": {
+                  "customerId": {
+                    "type": "string"
+                  },
+                  "restaurantId": {
+                    "type": "string"
+                  },
+                  "addressId": {
+                    "type": "string"
+                  },
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "menuItemId": {
+                          "type": "string"
+                        },
+                        "quantity": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  },
+                  "paymentMethod": {
+                    "type": "string",
+                    "enum": ["CASH", "CREDIT_CARD", "MOBILE_BANKING", "PROMPTPAY"]
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Order created successfully"
+          }
+        }
+      }
+    },
+    "/api/deliveries": {
+      "get": {
+        "tags": ["Deliveries"],
+        "summary": "Get deliveries",
+        "parameters": [
+          {
+            "name": "driverId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by driver ID"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["FINDING_DRIVER", "DRIVER_ASSIGNED", "DRIVER_ARRIVED", "PICKED_UP", "ON_THE_WAY", "DELIVERED", "FAILED"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deliveries retrieved successfully"
+          }
+        }
+      }
+    },
+    "/api/deliveries/{id}": {
+      "get": {
+        "tags": ["Deliveries"],
+        "summary": "Get delivery by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delivery retrieved successfully"
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Deliveries"],
+        "summary": "Update delivery status",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string"
+                  },
+                  "currentLatitude": {
+                    "type": "number"
+                  },
+                  "currentLongitude": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Delivery updated successfully"
+          }
+        }
+      }
+    },
+    "/api/chatbot": {
+      "post": {
+        "tags": ["Chatbot"],
+        "summary": "Send message to RAG chatbot",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["message"],
+                "properties": {
+                  "message": {
+                    "type": "string"
+                  },
+                  "conversationId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chatbot response"
+          }
+        }
+      }
+    },
+    "/api/documents": {
+      "get": {
+        "tags": ["Documents"],
+        "summary": "Get all documents",
+        "responses": {
+          "200": {
+            "description": "Documents retrieved successfully"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Documents"],
+        "summary": "Upload a new document",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Document uploaded successfully"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DriverProfile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "vehicleType": {
+            "type": "string",
+            "enum": ["Motorcycle", "Car", "Bicycle"]
+          },
+          "vehiclePlate": {
+            "type": "string"
+          },
+          "licenseNumber": {
+            "type": "string"
+          },
+          "licenseExpiry": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "isOnline": {
+            "type": "boolean"
+          },
+          "isAvailable": {
+            "type": "boolean"
+          },
+          "rating": {
+            "type": "number"
+          },
+          "totalDeliveries": {
+            "type": "integer"
+          },
+          "totalEarnings": {
+            "type": "number"
+          },
+          "currentLatitude": {
+            "type": "number"
+          },
+          "currentLongitude": {
+            "type": "number"
+          },
+          "isVerified": {
+            "type": "boolean"
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "phone": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Restaurant": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "rating": {
+            "type": "number"
+          },
+          "isOpen": {
+            "type": "boolean"
+          },
+          "deliveryFee": {
+            "type": "number"
+          },
+          "minimumOrder": {
+            "type": "number"
+          }
+        }
+      }
+    }
+  }
+}
