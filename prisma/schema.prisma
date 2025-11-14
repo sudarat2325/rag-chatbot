@@ -46,6 +46,10 @@ model User {
 
   // Favorites
   favorites     Favorite[]
+
+  // Payment & Wallet
+  wallet        Wallet?
+  loyaltyPoints LoyaltyPoints?
 }
 
 enum UserRole {
@@ -199,6 +203,8 @@ model Order {
   delivery        Delivery?
   review          Review?
   notifications   Notification[]
+  payments        Payment[]
+  commission      Commission?
 }
 
 enum OrderStatus {
@@ -219,6 +225,10 @@ enum PaymentMethod {
   DEBIT_CARD
   MOBILE_BANKING
   PROMPTPAY
+  QR_CODE
+  WALLET
+  STRIPE
+  OMISE
 }
 
 enum PaymentStatus {
@@ -511,4 +521,222 @@ model Favorite {
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@unique([userId, restaurantId])
+}
+
+// Payment Transaction System
+model Payment {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  orderId         String        @db.ObjectId
+  order           Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  amount          Float
+  currency        String        @default("THB")
+  method          PaymentMethod
+  status          PaymentStatus @default(PENDING)
+
+  // Payment Gateway Details
+  gatewayProvider String?       // "stripe", "omise", "promptpay"
+  gatewayTxnId    String?       // Transaction ID from payment gateway
+  gatewayResponse String?       // JSON response from gateway
+
+  // QR Code Payment
+  qrCodeUrl       String?       // For PromptPay QR
+  qrCodeData      String?       // QR code payload
+
+  // Card Details (tokenized)
+  cardLast4       String?
+  cardBrand       String?       // "visa", "mastercard", etc.
+  cardToken       String?
+
+  // Wallet Payment
+  walletId        String?       @db.ObjectId
+  wallet          Wallet?       @relation(fields: [walletId], references: [id])
+
+  // Payment Timeline
+  paidAt          DateTime?
+  failedAt        DateTime?
+  refundedAt      DateTime?
+
+  // Error handling
+  errorCode       String?
+  errorMessage    String?
+
+  // Metadata
+  metadata        String?       // JSON for additional data
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  refunds         Refund[]
+}
+
+// Wallet System for Users
+model Wallet {
+  id              String            @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String            @unique @db.ObjectId
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  balance         Float             @default(0)
+  currency        String            @default("THB")
+
+  // Limits
+  dailyLimit      Float             @default(10000)
+  monthlyLimit    Float             @default(50000)
+
+  isActive        Boolean           @default(true)
+  isVerified      Boolean           @default(false)
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  // Relations
+  transactions    WalletTransaction[]
+  payments        Payment[]
+}
+
+// Wallet Transactions History
+model WalletTransaction {
+  id              String                @id @default(auto()) @map("_id") @db.ObjectId
+  walletId        String                @db.ObjectId
+  wallet          Wallet                @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  type            WalletTransactionType
+  amount          Float
+  balanceBefore   Float
+  balanceAfter    Float
+
+  // Reference
+  orderId         String?
+  description     String?
+
+  // Payment Gateway (for top-up)
+  gatewayTxnId    String?
+  gatewayProvider String?
+
+  createdAt       DateTime              @default(now())
+}
+
+enum WalletTransactionType {
+  TOP_UP          // เติมเงิน
+  PAYMENT         // จ่ายเงิน
+  REFUND          // คืนเงิน
+  CASHBACK        // รับเงินคืน
+  TRANSFER        // โอนเงิน
+  WITHDRAWAL      // ถอนเงิน
+  COMMISSION      // ค่าคอมมิชชั่น
+  BONUS           // โบนัส
+}
+
+// Refund Management
+model Refund {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  paymentId       String        @db.ObjectId
+  payment         Payment       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  amount          Float
+  reason          String
+  status          RefundStatus  @default(PENDING)
+
+  // Processing
+  processedBy     String?       // Admin user ID
+  processedAt     DateTime?
+  rejectedReason  String?
+
+  // Gateway
+  gatewayRefundId String?
+  gatewayResponse String?       // JSON
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  COMPLETED
+  REJECTED
+  FAILED
+}
+
+// Loyalty Points System
+model LoyaltyPoints {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String   @unique @db.ObjectId
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  points          Int      @default(0)
+  totalEarned     Int      @default(0)
+  totalSpent      Int      @default(0)
+
+  tier            LoyaltyTier @default(BRONZE)
+  tierExpiresAt   DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  transactions    PointTransaction[]
+}
+
+enum LoyaltyTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+  DIAMOND
+}
+
+// Points Transaction History
+model PointTransaction {
+  id              String            @id @default(auto()) @map("_id") @db.ObjectId
+  loyaltyPointsId String            @db.ObjectId
+  loyaltyPoints   LoyaltyPoints     @relation(fields: [loyaltyPointsId], references: [id], onDelete: Cascade)
+
+  type            PointTransactionType
+  points          Int
+  balanceBefore   Int
+  balanceAfter    Int
+
+  orderId         String?
+  description     String?
+  expiresAt       DateTime?
+
+  createdAt       DateTime          @default(now())
+}
+
+enum PointTransactionType {
+  EARNED          // รับคะแนน
+  REDEEMED        // ใช้คะแนน
+  EXPIRED         // หมดอายุ
+  BONUS           // โบนัส
+  ADJUSTMENT      // ปรับปรุง
+}
+
+// Commission Management for Platform
+model Commission {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId         String   @unique @db.ObjectId
+  order           Order    @relation(fields: [orderId], references: [id])
+
+  restaurantId    String   @db.ObjectId
+  driverId        String?  @db.ObjectId
+
+  // Amounts
+  orderTotal      Float
+  platformFee     Float    // Platform commission
+  deliveryFee     Float
+  driverEarning   Float?
+
+  // Rates
+  platformRate    Float    @default(15) // 15% commission
+  driverRate      Float    @default(80) // 80% of delivery fee
+
+  // Settlement
+  isPaid          Boolean  @default(false)
+  paidAt          DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
