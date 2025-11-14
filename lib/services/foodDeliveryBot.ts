@@ -163,9 +163,9 @@ export class FoodDeliveryBot {
       });
 
       const textContent = response.content.find(
-        (chunk): chunk is { type: 'text'; text: string } => chunk.type === 'text'
+        (chunk) => chunk.type === 'text'
       );
-      return textContent?.text ?? 'ขออภัย ไม่สามารถตอบกลับได้ในขณะนี้';
+      return textContent && 'text' in textContent ? textContent.text : 'ขออภัย ไม่สามารถตอบกลับได้ในขณะนี้';
     } catch (error) {
       console.error('Food delivery bot error:', error);
       return 'ขออภัย เกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้ง';
@@ -224,7 +224,7 @@ export class FoodDeliveryBot {
       enriched.popularItems = await this.getPopularItems();
     }
 
-    enriched.intent = intent;
+    enriched.intent = intent as IntentType;
 
     return enriched;
   }

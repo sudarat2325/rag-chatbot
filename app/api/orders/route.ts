@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
 
     const response: ApiResponse<OrderWithDetails[]> = {
       success: true,
-      data: orders as OrderWithDetails[],
+      data: orders as unknown as OrderWithDetails[],
     };
 
     return NextResponse.json(response);

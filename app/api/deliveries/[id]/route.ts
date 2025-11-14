@@ -236,7 +236,7 @@ export async function PATCH(
         }
       ).emitLocationUpdate;
 
-      if (status && emitOrderUpdate) {
+      if (status && emitOrderUpdate && updatedDelivery) {
         emitOrderUpdate(currentDelivery.orderId, status, updatedDelivery.order);
       }
 

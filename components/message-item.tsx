@@ -18,18 +18,18 @@ interface MessageItemProps {
 }
 
 const markdownComponents: Components = {
-  code({ inline, className, children, ...props }) {
+  code(props) {
+    const { className, children } = props;
     const match = /language-(\w+)/.exec(className ?? '');
     const codeContent = String(children ?? '').replace(/\n$/, '');
 
-    if (!inline && match) {
+    if (match) {
       return (
         <SyntaxHighlighter
-          style={vscDarkPlus}
+          style={vscDarkPlus as any}
           language={match[1]}
           PreTag="div"
           className="rounded-md !my-2"
-          {...props}
         >
           {codeContent}
         </SyntaxHighlighter>
@@ -37,7 +37,7 @@ const markdownComponents: Components = {
     }
 
     return (
-      <code className="bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm" {...props}>
+      <code className="bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm">
         {codeContent}
       </code>
     );

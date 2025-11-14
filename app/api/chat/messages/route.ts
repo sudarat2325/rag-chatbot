@@ -120,7 +120,27 @@ export async function POST(request: NextRequest) {
       }
     ).emitChatMessage;
     if (emitChatMessage) {
-      emitChatMessage(orderId, chatMessage);
+      // Transform to match ChatBox Message interface
+      const socketMessage = {
+        id: chatMessage.id,
+        senderId: chatMessage.senderId,
+        senderName: chatMessage.sender.name,
+        message: chatMessage.message,
+        timestamp: chatMessage.createdAt,
+        type: chatMessage.messageType.toLowerCase(),
+        imageUrl: chatMessage.imageUrl,
+      };
+
+      console.log('📤 Emitting chat message to room:', {
+        room: `order-${orderId}`,
+        event: `chat-message-${orderId}`,
+        senderId,
+        receiverId,
+        message: message.substring(0, 50) + '...',
+      });
+      emitChatMessage(orderId, socketMessage);
+    } else {
+      console.warn('⚠️ emitChatMessage function not available');
     }
 
     const response: ApiResponse = {

@@ -21,7 +21,10 @@ interface ChatBoxProps {
   recipientId: string;
   recipientName: string;
   recipientType: 'restaurant' | 'driver' | 'customer';
+  recipientImage?: string;
+  position?: 'right' | 'left';
   onClose: () => void;
+  onMessageReceived?: (senderId: string) => void; // Callback when message received
 }
 
 interface ChatMessageResponse {
@@ -48,6 +51,8 @@ export function ChatBox({
   recipientId,
   recipientName,
   recipientType,
+  recipientImage,
+  position = 'right',
   onClose,
 }: ChatBoxProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -98,26 +103,48 @@ export function ChatBox({
 
   // Listen for incoming messages
   useEffect(() => {
-    const handleNewMessage = (data: Message) => {
+    const handleNewMessage = (rawData: unknown) => {
+      const data = rawData as Message;
+      console.log('💬 Received chat message:', {
+        event: `chat-message-${orderId}`,
+        recipientType,
+        senderId: data.senderId,
+        senderName: data.senderName,
+        message: data.message,
+        myUserId: userId,
+        willShow: data.senderId !== userId,
+      });
+
       if (data.senderId !== userId) {
+        console.log('✅ Adding message to chat');
         setMessages(prev => [...prev, data]);
+      } else {
+        console.log('⏭️ Skipping own message');
       }
     };
 
-    const handleTypingEvent = (data: TypingEventPayload) => {
+    const handleTypingEvent = (rawData: unknown) => {
+      const data = rawData as TypingEventPayload;
       if (data.userId !== userId) {
         setIsTyping(data.isTyping);
       }
     };
 
+    console.log('👂 ChatBox setup:', {
+      recipientType,
+      myUserId: userId,
+      orderId,
+      eventName: `chat-message-${orderId}`,
+    });
     on(`chat-message-${orderId}`, handleNewMessage);
     on(`chat-typing-${orderId}`, handleTypingEvent);
 
     return () => {
+      console.log('👋 ChatBox cleanup:', { recipientType, orderId });
       off(`chat-message-${orderId}`, handleNewMessage);
       off(`chat-typing-${orderId}`, handleTypingEvent);
     };
-  }, [orderId, userId, on, off]);
+  }, [orderId, userId, on, off, recipientType]);
 
   // Handle typing indicator
   const handleTyping = () => {
@@ -181,23 +208,41 @@ export function ChatBox({
     }
   };
 
+  const positionClass = position === 'right' ? 'right-6' : 'right-[25rem]';
+
   return (
-    <div className="fixed bottom-0 right-6 w-96 bg-white dark:bg-gray-800 rounded-t-xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col" style={{ height: '500px', zIndex: 1000 }}>
+    <div className={`fixed bottom-0 ${positionClass} w-96 bg-white dark:bg-gray-800 rounded-t-xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col`} style={{ height: '500px', zIndex: 1000 }}>
       {/* Header */}
       <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-4 py-3 rounded-t-xl flex items-center justify-between">
-        <div>
-          <h3 className="font-semibold">{recipientName}</h3>
-          <p className="text-xs opacity-90">
-            {recipientType === 'restaurant'
-              ? 'ร้านอาหาร'
-              : recipientType === 'customer'
-                ? 'ลูกค้า'
-                : 'คนขับ'}
-          </p>
+        <div className="flex items-center gap-3">
+          {/* Avatar/Logo */}
+          <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center overflow-hidden flex-shrink-0">
+            {recipientImage ? (
+              <img
+                src={recipientImage}
+                alt={recipientName}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span className="text-3xl">
+                {recipientType === 'restaurant' ? '🏪' : recipientType === 'customer' ? '👤' : '🚗'}
+              </span>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-bold text-base truncate">{recipientName}</h3>
+            <p className="text-xs opacity-90 font-medium">
+              {recipientType === 'restaurant'
+                ? '💬 ร้านอาหาร'
+                : recipientType === 'customer'
+                  ? '💬 ลูกค้า'
+                  : '💬 คนขับ'}
+            </p>
+          </div>
         </div>
         <button
           onClick={onClose}
-          className="p-1 hover:bg-white/20 rounded-full transition-colors"
+          className="p-1 hover:bg-white/20 rounded-full transition-colors flex-shrink-0"
         >
           <X className="w-5 h-5" />
         </button>
@@ -234,7 +279,7 @@ export function ChatBox({
                   }`}
                 >
                   {!isOwn && (
-                    <p className="text-xs opacity-75 mb-1">{msg.senderName}</p>
+                    <p className="text-xs font-semibold opacity-80 mb-1.5">{msg.senderName}</p>
                   )}
 
                   {msg.type === 'image' && msg.imageUrl && (

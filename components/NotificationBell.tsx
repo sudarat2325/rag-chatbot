@@ -40,7 +40,8 @@ export function NotificationBell({ userId }: NotificationBellProps) {
   useEffect(() => {
     if (!isConnected) return;
 
-    const handleNotification = (notification: Notification) => {
+    const handleNotification = (rawData: unknown) => {
+      const notification = rawData as Notification;
       console.warn('🔔 New notification received:', notification);
 
       // Add to notifications list
@@ -50,8 +51,8 @@ export function NotificationBell({ userId }: NotificationBellProps) {
       setUnreadCount(prev => prev + 1);
 
       // Show browser notification if supported
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification(notification.title, {
+      if ('Notification' in window && window.Notification.permission === 'granted') {
+        new window.Notification(notification.title, {
           body: notification.message,
           icon: '/icons/notification-icon.png',
           badge: '/icons/badge-icon.png',

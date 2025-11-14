@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useSocket } from '@/lib/hooks/useSocket';
 import { Clock, CheckCircle, Truck, Package, XCircle, Filter, RefreshCw, Store, LogOut } from 'lucide-react';
 
 interface OrderItem {
@@ -48,6 +49,9 @@ function RestaurantDashboardContent() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [highlightedOrder, setHighlightedOrder] = useState<string | null>(highlightOrderId);
   const [statusFilter, setStatusFilter] = useState<string>('active');
+
+  // Socket.IO for real-time updates
+  const { joinRestaurant, leaveRestaurant, joinOrder, leaveOrder, on, off } = useSocket(userId || undefined);
   const orderRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   useEffect(() => {
@@ -110,6 +114,47 @@ function RestaurantDashboardContent() {
       }, 500);
     }
   }, [highlightOrderId, orders]);
+
+  // Socket.IO: Join restaurant room and listen for real-time updates
+  useEffect(() => {
+    if (!restaurant?.id) return;
+
+    // Join restaurant room to receive new orders and updates
+    joinRestaurant(restaurant.id);
+
+    // Listen for order updates
+    const handleOrderUpdate = () => {
+      // Refresh orders when any order is updated
+      fetchOrders(restaurant.id);
+    };
+
+    on('order-status-update', handleOrderUpdate);
+    on('restaurant-notification', handleOrderUpdate);
+
+    return () => {
+      leaveRestaurant(restaurant.id);
+      off('order-status-update', handleOrderUpdate);
+      off('restaurant-notification', handleOrderUpdate);
+    };
+  }, [restaurant, joinRestaurant, leaveRestaurant, on, off]);
+
+  // Socket.IO: Join all active order rooms for real-time chat
+  useEffect(() => {
+    if (orders.length === 0) return;
+
+    // Join order rooms for active orders (not delivered/cancelled)
+    orders.forEach((order) => {
+      if (!['DELIVERED', 'CANCELLED', 'REJECTED'].includes(order.status)) {
+        joinOrder(order.id);
+      }
+    });
+
+    return () => {
+      orders.forEach((order) => {
+        leaveOrder(order.id);
+      });
+    };
+  }, [orders, joinOrder, leaveOrder]);
 
   const fetchRestaurantAndOrders = async (uid: string) => {
     try {

@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState, useEffect } from 'react';
+import { use, useState, useEffect, useRef } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { useSocket } from '@/lib/hooks/useSocket';
 import { DeliveryMap } from '@/components/map/DeliveryMap';
@@ -107,6 +107,16 @@ export default function OrderTrackingPage({ params }: { params: Promise<{ orderI
   const [showDriverChat, setShowDriverChat] = useState(false);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [hasReview, setHasReview] = useState(false);
+  const [unreadRestaurantMessages, setUnreadRestaurantMessages] = useState(0);
+  const [unreadDriverMessages, setUnreadDriverMessages] = useState(0);
+  const showDriverChatRef = useRef(showDriverChat);
+  const showRestaurantChatRef = useRef(showRestaurantChat);
+
+  // Update refs when state changes
+  useEffect(() => {
+    showDriverChatRef.current = showDriverChat;
+    showRestaurantChatRef.current = showRestaurantChat;
+  }, [showDriverChat, showRestaurantChat]);
 
   const { joinOrder, leaveOrder, joinDelivery, leaveDelivery, on, off } = useSocket(userId);
 
@@ -129,18 +139,20 @@ export default function OrderTrackingPage({ params }: { params: Promise<{ orderI
       joinDelivery(orderId);
 
       // Listen for order status updates
-      const handleOrderUpdate = (data: OrderUpdateEvent) => {
-        console.warn('📦 Order updated:', data);
-        if (data.orderId === orderId) {
-          setOrder(prev => prev ? { ...prev, status: data.status } : null);
+      const handleOrderUpdate = (data: unknown) => {
+        const orderUpdate = data as OrderUpdateEvent;
+        console.warn('📦 Order updated:', orderUpdate);
+        if (orderUpdate.orderId === orderId) {
+          setOrder(prev => prev ? { ...prev, status: orderUpdate.status } : null);
         }
       };
 
       // Listen for delivery location updates
-      const handleDeliveryUpdate = (data: DeliveryUpdateEvent) => {
-        console.warn('🚚 Delivery location updated:', data);
-        if (data.orderId === orderId && data.location) {
-          const location = data.location;
+      const handleDeliveryUpdate = (data: unknown) => {
+        const deliveryUpdate = data as DeliveryUpdateEvent;
+        console.warn('🚚 Delivery location updated:', deliveryUpdate);
+        if (deliveryUpdate.orderId === orderId && deliveryUpdate.location) {
+          const location = deliveryUpdate.location;
           setDriverLocation(location);
           // Also update order delivery data
           setOrder(prev => prev ? {
@@ -165,6 +177,71 @@ export default function OrderTrackingPage({ params }: { params: Promise<{ orderI
       };
     }
   }, [orderId, joinOrder, leaveOrder, joinDelivery, leaveDelivery, on, off]);
+
+  // Listen for chat messages and auto-open ChatBox
+  useEffect(() => {
+    if (!orderId || !userId || !order) return;
+
+    const driverId = order.delivery?.driver?.id;
+    const restaurantId = order.restaurant.id;
+
+    const handleIncomingChatMessage = (rawData: unknown) => {
+      const data = rawData as {
+        id: string;
+        senderId: string;
+        senderName: string;
+        message: string;
+        timestamp: string;
+        type?: string;
+        imageUrl?: string;
+      };
+
+      console.log('📨 Incoming chat message:', {
+        senderId: data.senderId,
+        senderName: data.senderName,
+        message: data.message.substring(0, 30),
+        myUserId: userId,
+        driverId,
+        restaurantId,
+        isFromDriver: data.senderId === driverId,
+        isFromRestaurant: data.senderId === restaurantId,
+      });
+
+      // Only handle messages from others
+      if (data.senderId === userId) {
+        console.log('⏭️ Skipping own message');
+        return;
+      }
+
+      // Auto-open chat if message from driver
+      if (driverId && data.senderId === driverId) {
+        console.log('💬 Opening driver chat automatically');
+        setShowDriverChat(true);
+        setUnreadDriverMessages(prev => prev + 1);
+      }
+      // Auto-open chat if message from restaurant
+      else if (restaurantId && data.senderId === restaurantId) {
+        console.log('💬 Opening restaurant chat automatically');
+        setShowRestaurantChat(true);
+        setUnreadRestaurantMessages(prev => prev + 1);
+      }
+    };
+
+    console.log('👂 Setting up incoming chat listener:', {
+      orderId,
+      userId,
+      driverId,
+      restaurantId,
+      event: `chat-message-${orderId}`,
+    });
+
+    on(`chat-message-${orderId}`, handleIncomingChatMessage);
+
+    return () => {
+      console.log('👋 Cleaning up incoming chat listener');
+      off(`chat-message-${orderId}`, handleIncomingChatMessage);
+    };
+  }, [orderId, userId, order, on, off]);
 
   const fetchOrder = async () => {
     try {
@@ -330,11 +407,19 @@ export default function OrderTrackingPage({ params }: { params: Promise<{ orderI
                 </a>
               </div>
               <button
-                onClick={() => setShowRestaurantChat(true)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                onClick={() => {
+                  setShowRestaurantChat(true);
+                  setUnreadRestaurantMessages(0);
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors relative"
               >
                 <MessageCircle className="w-4 h-4" />
                 แชทกับร้าน
+                {unreadRestaurantMessages > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {unreadRestaurantMessages > 9 ? '9+' : unreadRestaurantMessages}
+                  </span>
+                )}
               </button>
             </div>
 
@@ -373,11 +458,19 @@ export default function OrderTrackingPage({ params }: { params: Promise<{ orderI
                 </a>
               </div>
               <button
-                onClick={() => setShowDriverChat(true)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 transition-colors border border-white/30"
+                onClick={() => {
+                  setShowDriverChat(true);
+                  setUnreadDriverMessages(0);
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 transition-colors border border-white/30 relative"
               >
                 <MessageCircle className="w-4 h-4" />
                 แชทกับคนขับ
+                {unreadDriverMessages > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {unreadDriverMessages > 9 ? '9+' : unreadDriverMessages}
+                  </span>
+                )}
               </button>
             </div>
           )}

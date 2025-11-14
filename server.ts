@@ -191,8 +191,22 @@ app.prepare().then(() => {
   };
 
   serverGlobals.emitChatMessage = (orderId: string, message: unknown) => {
-    io.to(`order-${orderId}`).emit(`chat-message-${orderId}`, message);
-    console.warn(`💬 Emitted chat message for order ${orderId}`);
+    const roomName = `order-${orderId}`;
+    const eventName = `chat-message-${orderId}`;
+
+    // Get all sockets in this room
+    const room = io.sockets.adapter.rooms.get(roomName);
+    const socketsInRoom = room ? Array.from(room) : [];
+
+    console.warn(`💬 Emitting chat message:`, {
+      room: roomName,
+      event: eventName,
+      socketsInRoom: socketsInRoom.length,
+      socketIds: socketsInRoom,
+      message: (message as {message?: string})?.message?.substring(0, 50),
+    });
+
+    io.to(roomName).emit(eventName, message);
   };
 
   // Start server

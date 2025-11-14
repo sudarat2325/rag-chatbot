@@ -1,4 +1,3 @@
-import { TextLoader } from 'langchain/document_loaders/fs/text';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { Document } from '@langchain/core/documents';
 import fs from 'fs/promises';
@@ -21,17 +20,21 @@ export class TextDocumentLoader {
   async loadTextFile(filePath: string): Promise<Document[]> {
     try {
       console.warn(`Loading text file: ${filePath}`);
-      const loader = new TextLoader(filePath);
-      const docs = await loader.load();
 
-      // Add file metadata
-      docs.forEach((doc: Document) => {
-        doc.metadata.source = filePath;
-        doc.metadata.fileName = path.basename(filePath);
+      // Read file content
+      const content = await fs.readFile(filePath, 'utf-8');
+
+      // Create document
+      const doc = new Document({
+        pageContent: content,
+        metadata: {
+          source: filePath,
+          fileName: path.basename(filePath),
+        },
       });
 
       // Split documents into chunks
-      const splitDocs = await this.textSplitter.splitDocuments(docs);
+      const splitDocs = await this.textSplitter.splitDocuments([doc]);
 
       console.warn(`✓ Loaded ${splitDocs.length} chunks from ${path.basename(filePath)}`);
       return splitDocs;

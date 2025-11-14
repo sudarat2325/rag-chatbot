@@ -62,7 +62,7 @@ export default function DriverDashboard() {
   const [todayStats, setTodayStats] = useState({ deliveries: 0, earnings: 0 });
   const [acceptingDeliveryId, setAcceptingDeliveryId] = useState<string | null>(null);
 
-  useSocket(userId);
+  const { joinOrder, leaveOrder, joinDelivery, leaveDelivery, on, off } = useSocket(userId);
 
   const calculateDistanceKm = (
     targetLat?: number | null,
@@ -154,6 +154,29 @@ export default function DriverDashboard() {
 
     return () => clearInterval(interval);
   }, [userId, isOnline]);
+
+  // Socket.IO: Join order and delivery rooms for real-time chat
+  useEffect(() => {
+    if (!currentDelivery?.orderId) return;
+
+    // Join order room for chat messages
+    joinOrder(currentDelivery.orderId);
+
+    // Join delivery room for location tracking
+    joinDelivery(currentDelivery.orderId);
+
+    console.log('🔵 Driver joined rooms:', {
+      orderId: currentDelivery.orderId,
+      orderRoom: `order-${currentDelivery.orderId}`,
+      deliveryRoom: `delivery-${currentDelivery.orderId}`,
+    });
+
+    return () => {
+      leaveOrder(currentDelivery.orderId);
+      leaveDelivery(currentDelivery.orderId);
+      console.log('🔴 Driver left rooms:', currentDelivery.orderId);
+    };
+  }, [currentDelivery?.orderId, joinOrder, leaveOrder, joinDelivery, leaveDelivery]);
 
   // Get current location
   useEffect(() => {
@@ -288,7 +311,7 @@ export default function DriverDashboard() {
           return deliveredAt && deliveredAt >= today;
         });
 
-        const earnings = deliveredToday.reduce((total: number, delivery) => {
+        const earnings = deliveredToday.reduce((total: number, delivery: Delivery & { deliveredAt?: string | null }) => {
           return total + (delivery.order?.total ?? 0);
         }, 0);
 
@@ -478,7 +501,9 @@ export default function DriverDashboard() {
                     </span>
                   )}
                 </h1>
-                <p className="text-lg text-white/90 font-medium">จัดการการจัดส่งของคุณ</p>
+                <p className="text-lg text-white/90 font-medium">
+                  {userName && userName !== 'ไรเดอร์' ? `คุณ${userName}` : 'จัดการการจัดส่งของคุณ'}
+                </p>
               </div>
             </div>
 
@@ -516,7 +541,9 @@ export default function DriverDashboard() {
           userName={userName}
           recipientId={currentDelivery.order.restaurant.ownerId}
           recipientName={currentDelivery.order.restaurant.name}
+          recipientImage={(currentDelivery.order.restaurant as typeof currentDelivery.order.restaurant & { logo?: string | null }).logo || undefined}
           recipientType="restaurant"
+          position="left"
           onClose={() => setShowRestaurantChat(false)}
         />
       )}
@@ -529,6 +556,7 @@ export default function DriverDashboard() {
           recipientId={currentDelivery.order.customer.id}
           recipientName={currentDelivery.order.customer.name ?? 'ลูกค้า'}
           recipientType="customer"
+          position="right"
           onClose={() => setShowCustomerChat(false)}
         />
       )}
