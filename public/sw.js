@@ -1,16 +1,29 @@
 /* eslint-env serviceworker */
-/* global console, self, clients, fetch, atob */
+/* global console, self, clients, fetch, atob, caches */
 /**
- * Service Worker for Push Notifications
+ * Service Worker for PWA
  *
  * This service worker handles:
  * - Push notification events
  * - Notification clicks
- * - Background sync (future)
+ * - Offline support with cache strategies
+ * - Background sync
  */
 
 // Service Worker version
-const SW_VERSION = '1.0.0';
+const SW_VERSION = '2.0.0';
+const CACHE_NAME = `food-delivery-v${SW_VERSION}`;
+const RUNTIME_CACHE = `runtime-${CACHE_NAME}`;
+const OFFLINE_PAGE = '/offline.html';
+
+// Assets to cache on install
+const STATIC_ASSETS = [
+  '/',
+  '/offline.html',
+  '/manifest.json',
+  '/icons/icon-192x192.png',
+  '/icons/icon-512x512.png',
+];
 
 console.warn(`🔧 Service Worker v${SW_VERSION} loaded`);
 
@@ -153,17 +166,156 @@ self.addEventListener('pushsubscriptionchange', (event) => {
 });
 
 // Service Worker installation
-self.addEventListener('install', () => {
-  console.warn(`✅ Service Worker v${SW_VERSION} installed`);
-  // Skip waiting to activate immediately
-  self.skipWaiting();
+self.addEventListener('install', (event) => {
+  console.warn(`✅ Service Worker v${SW_VERSION} installing...`);
+
+  event.waitUntil(
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => {
+        console.warn('📦 Caching static assets');
+        return cache.addAll(STATIC_ASSETS);
+      })
+      .then(() => {
+        console.warn(`✅ Service Worker v${SW_VERSION} installed`);
+        // Skip waiting to activate immediately
+        return self.skipWaiting();
+      })
+      .catch((error) => {
+        console.error('❌ Failed to cache static assets:', error);
+      })
+  );
 });
 
 // Service Worker activation
 self.addEventListener('activate', (event) => {
-  console.warn(`✅ Service Worker v${SW_VERSION} activated`);
-  // Claim all clients immediately
-  event.waitUntil(clients.claim());
+  console.warn(`✅ Service Worker v${SW_VERSION} activating...`);
+
+  event.waitUntil(
+    caches
+      .keys()
+      .then((cacheNames) => {
+        // Delete old caches
+        return Promise.all(
+          cacheNames
+            .filter((name) => name !== CACHE_NAME && name !== RUNTIME_CACHE)
+            .map((name) => {
+              console.warn(`🗑️  Deleting old cache: ${name}`);
+              return caches.delete(name);
+            })
+        );
+      })
+      .then(() => {
+        console.warn(`✅ Service Worker v${SW_VERSION} activated`);
+        // Claim all clients immediately
+        return clients.claim();
+      })
+  );
+});
+
+// Fetch event - Network First strategy for API, Cache First for static assets
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // Skip non-GET requests
+  if (request.method !== 'GET') {
+    return;
+  }
+
+  // Skip chrome-extension and other non-http(s) requests
+  if (!url.protocol.startsWith('http')) {
+    return;
+  }
+
+  // API requests - Network First strategy
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          // Clone the response before caching
+          const responseToCache = response.clone();
+          caches.open(RUNTIME_CACHE).then((cache) => {
+            cache.put(request, responseToCache);
+          });
+          return response;
+        })
+        .catch(() => {
+          // Return cached response if network fails
+          return caches.match(request).then((response) => {
+            if (response) {
+              return response;
+            }
+            // Return offline response for API calls
+            return new Response(
+              JSON.stringify({
+                success: false,
+                error: 'You are offline. Please check your internet connection.',
+                offline: true,
+              }),
+              {
+                headers: { 'Content-Type': 'application/json' },
+                status: 503,
+              }
+            );
+          });
+        })
+    );
+    return;
+  }
+
+  // Static assets and pages - Cache First strategy
+  event.respondWith(
+    caches.match(request).then((cachedResponse) => {
+      if (cachedResponse) {
+        // Return cached version and update cache in background
+        fetch(request)
+          .then((response) => {
+            caches.open(RUNTIME_CACHE).then((cache) => {
+              cache.put(request, response);
+            });
+          })
+          .catch(() => {
+            // Ignore fetch errors in background update
+          });
+
+        return cachedResponse;
+      }
+
+      // Not in cache, fetch from network
+      return fetch(request)
+        .then((response) => {
+          // Don't cache non-successful responses
+          if (!response || response.status !== 200) {
+            return response;
+          }
+
+          // Clone the response before caching
+          const responseToCache = response.clone();
+          caches.open(RUNTIME_CACHE).then((cache) => {
+            cache.put(request, responseToCache);
+          });
+
+          return response;
+        })
+        .catch(() => {
+          // Return offline page for navigation requests
+          if (request.mode === 'navigate') {
+            return caches.match(OFFLINE_PAGE);
+          }
+
+          // Return fallback for images
+          if (request.destination === 'image') {
+            return new Response(
+              '<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#f97316"/><text x="50" y="50" text-anchor="middle" fill="white" font-size="14">Offline</text></svg>',
+              { headers: { 'Content-Type': 'image/svg+xml' } }
+            );
+          }
+
+          return new Response('Offline', { status: 503 });
+        });
+    })
+  );
 });
 
 // Helper function to convert VAPID key

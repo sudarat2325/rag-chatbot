@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline - Food Delivery</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      max-width: 500px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .icon {
+      width: 120px;
+      height: 120px;
+      margin: 0 auto 30px;
+      background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.05);
+      }
+    }
+
+    .icon svg {
+      width: 60px;
+      height: 60px;
+      stroke: white;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    h1 {
+      font-size: 28px;
+      color: #1f2937;
+      margin-bottom: 16px;
+      font-weight: 700;
+    }
+
+    p {
+      font-size: 16px;
+      color: #6b7280;
+      line-height: 1.6;
+      margin-bottom: 30px;
+    }
+
+    .retry-btn {
+      background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+      color: white;
+      border: none;
+      padding: 14px 32px;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 14px rgba(249, 115, 22, 0.4);
+    }
+
+    .retry-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(249, 115, 22, 0.6);
+    }
+
+    .retry-btn:active {
+      transform: translateY(0);
+    }
+
+    .tips {
+      margin-top: 30px;
+      padding-top: 30px;
+      border-top: 1px solid #e5e7eb;
+      text-align: left;
+    }
+
+    .tips h3 {
+      font-size: 14px;
+      color: #1f2937;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    .tips ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .tips li {
+      font-size: 14px;
+      color: #6b7280;
+      margin-bottom: 8px;
+      padding-left: 20px;
+      position: relative;
+    }
+
+    .tips li:before {
+      content: "•";
+      color: #f97316;
+      font-weight: bold;
+      position: absolute;
+      left: 0;
+    }
+
+    .loading {
+      display: none;
+      margin-top: 20px;
+    }
+
+    .loading.active {
+      display: block;
+    }
+
+    .spinner {
+      border: 3px solid #f3f4f6;
+      border-top: 3px solid #f97316;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">
+      <svg viewBox="0 0 24 24">
+        <path d="M1 1l22 22M17 17a5 5 0 0 1-10 0M12 2v1M5.6 5.6l.7.7M2 12h1M18.4 5.6l-.7.7M21 12h1"></path>
+      </svg>
+    </div>
+
+    <h1>🔌 คุณออฟไลน์อยู่</h1>
+    <p>
+      ดูเหมือนว่าคุณไม่ได้เชื่อมต่ออินเทอร์เน็ต<br>
+      กรุณาตรวจสอบการเชื่อมต่อของคุณแล้วลองอีกครั้ง
+    </p>
+
+    <button class="retry-btn" onclick="retryConnection()">
+      🔄 ลองเชื่อมต่อใหม่
+    </button>
+
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+    </div>
+
+    <div class="tips">
+      <h3>💡 เคล็ดลับ:</h3>
+      <ul>
+        <li>ตรวจสอบว่า WiFi หรือข้อมูลมือถือเปิดอยู่</li>
+        <li>ลองเปิด Airplane Mode แล้วปิดอีกครั้ง</li>
+        <li>ตรวจสอบสัญญาณอินเทอร์เน็ตของคุณ</li>
+        <li>ติดต่อผู้ให้บริการอินเทอร์เน็ตหากปัญหายังคงอยู่</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    function retryConnection() {
+      const loading = document.getElementById('loading');
+      const btn = document.querySelector('.retry-btn');
+
+      btn.disabled = true;
+      loading.classList.add('active');
+
+      // Try to reload the page
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    }
+
+    // Auto-retry when online
+    window.addEventListener('online', () => {
+      console.log('Back online! Reloading...');
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    });
+
+    // Check connection periodically
+    setInterval(() => {
+      if (navigator.onLine) {
+        fetch('/', { method: 'HEAD' })
+          .then(() => {
+            console.log('Connection restored!');
+            window.location.reload();
+          })
+          .catch(() => {
+            console.log('Still offline');
+          });
+      }
+    }, 5000);
+  </script>
+</body>
+</html>
