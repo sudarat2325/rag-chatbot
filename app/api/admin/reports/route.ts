@@ -78,7 +78,6 @@ export async function PATCH(request: NextRequest) {
       where: { id: reportId },
       data: {
         status,
-        resolvedAt: status === 'RESOLVED' ? new Date() : undefined,
       },
       include: {
         review: true,
