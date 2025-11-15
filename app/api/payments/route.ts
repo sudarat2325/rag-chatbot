@@ -102,30 +102,61 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { orderId, method } = body;
+    const { orderId, method, amount: demoAmount, userId } = body;
 
-    if (!orderId || !method) {
+    if (!method) {
       const response: ApiResponse = {
         success: false,
-        error: 'orderId and method are required',
+        error: 'method is required',
       };
       return NextResponse.json(response, { status: 400 });
     }
 
-    // Get order details
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: {
-        customer: true,
-      },
-    });
+    // Demo mode: if no orderId, create a temporary demo order
+    let order;
+    let isDemoMode = false;
 
-    if (!order) {
+    if (!orderId && demoAmount && userId) {
+      // Demo mode - create temporary order
+      isDemoMode = true;
+      order = await prisma.order.create({
+        data: {
+          customerId: userId,
+          restaurantId: '690b86f51ae3dae3cb00cbb3', // Demo restaurant ID
+          orderNumber: `DEMO-${Date.now()}`,
+          total: demoAmount,
+          subtotal: demoAmount,
+          deliveryFee: 0,
+          deliveryAddress: 'Demo Address',
+          deliveryLat: 0,
+          deliveryLng: 0,
+          status: 'PENDING',
+          paymentStatus: 'PENDING',
+          paymentMethod: method as any,
+        },
+      });
+    } else if (orderId) {
+      // Normal mode - get existing order
+      order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          customer: true,
+        },
+      });
+
+      if (!order) {
+        const response: ApiResponse = {
+          success: false,
+          error: 'Order not found',
+        };
+        return NextResponse.json(response, { status: 404 });
+      }
+    } else {
       const response: ApiResponse = {
         success: false,
-        error: 'Order not found',
+        error: 'Either orderId or (amount + userId) required',
       };
-      return NextResponse.json(response, { status: 404 });
+      return NextResponse.json(response, { status: 400 });
     }
 
     let qrCodeUrl: string | undefined;
@@ -138,7 +169,7 @@ export async function POST(request: NextRequest) {
         // Generate PromptPay QR code
         qrCodeUrl = await generatePromptPayQR(order.total);
         payment = await createPayment({
-          orderId,
+          orderId: order.id,
           amount: order.total,
           method,
           qrCodeUrl,
@@ -151,11 +182,11 @@ export async function POST(request: NextRequest) {
           const walletResult = await processWalletPayment(
             order.customerId,
             order.total,
-            orderId
+            order.id
           );
 
           payment = await createPayment({
-            orderId,
+            orderId: order.id,
             amount: order.total,
             method,
           });
@@ -171,7 +202,7 @@ export async function POST(request: NextRequest) {
 
           // Update order status
           await prisma.order.update({
-            where: { id: orderId },
+            where: { id: order.id },
             data: { paymentStatus: 'PAID' },
           });
 
@@ -194,7 +225,7 @@ export async function POST(request: NextRequest) {
 
       case 'CASH':
         payment = await createPayment({
-          orderId,
+          orderId: order.id,
           amount: order.total,
           method: 'CASH',
         });
@@ -202,7 +233,7 @@ export async function POST(request: NextRequest) {
 
       default:
         payment = await createPayment({
-          orderId,
+          orderId: order.id,
           amount: order.total,
           method,
         });

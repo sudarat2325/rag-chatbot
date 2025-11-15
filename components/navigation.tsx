@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bot, MessageSquare, UtensilsCrossed, FileText, Sun, Moon, Monitor } from 'lucide-react';
+import { Bot, MessageSquare, UtensilsCrossed, FileText, Sun, Moon, Monitor, Wallet } from 'lucide-react';
 import { useTheme } from '@/components/theme-provider';
 
 type Theme = 'light' | 'dark' | 'system';
@@ -28,6 +28,7 @@ export function Navigation() {
     { href: '/', label: 'RAG Chat', icon: Bot },
     { href: '/chatbot', label: 'Food Bot', icon: MessageSquare },
     { href: '/food', label: 'Food Delivery', icon: UtensilsCrossed },
+    { href: '/payment-demo', label: 'Payment Demo', icon: Wallet },
     { href: '/documents', label: 'Documents', icon: FileText },
   ];
 

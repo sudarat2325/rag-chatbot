@@ -54,7 +54,10 @@
       "Bash(DATABASE_URL=\"mongodb://localhost:27017/fooddelivery?replicaSet=rs0\" npx tsx:*)",
       "Bash(sudo chown:*)",
       "Bash(DATABASE_URL=\"mongodb://localhost:27017/fooddelivery?replicaSet=rs0\" npm run dev:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(npm run test:unit:*)",
+      "Bash(npm run test:api:*)",
+      "Bash(npm test:*)"
     ],
     "deny": [],
     "ask": []
