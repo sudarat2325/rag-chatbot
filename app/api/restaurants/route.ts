@@ -3,9 +3,14 @@ import prisma from '@/lib/prisma';
 import { calculateDistance, isRestaurantOpen } from '@/lib/utils/helpers';
 import type { ApiResponse, RestaurantWithDetails } from '@/lib/types';
 import { Prisma } from '@prisma/client';
+import { cache, CacheKeys, CacheTTL } from '@/lib/cache/cache';
+import logger from '@/lib/logger/winston';
+import { PerformanceMonitor } from '@/lib/logger/errorHandler';
 
 // GET /api/restaurants - Get all restaurants with filters
 export async function GET(request: NextRequest) {
+  const monitor = new PerformanceMonitor('GET /api/restaurants');
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const search = searchParams.get('search') || undefined;
@@ -17,53 +22,67 @@ export async function GET(request: NextRequest) {
     const longitude = searchParams.get('longitude') ? parseFloat(searchParams.get('longitude')!) : undefined;
     const ownerId = searchParams.get('ownerId') || undefined;
 
-    // Build where clause
-    const where: Prisma.RestaurantWhereInput = {
-      isActive: true,
-    };
+    // Build cache key based on filters (exclude coordinates as they're user-specific)
+    const filterKey = JSON.stringify({ search, category, minRating, isOpen, sortBy, ownerId });
+    const cacheKey = CacheKeys.restaurants(filterKey);
 
-    // Filter by owner ID (for checking if user already has a restaurant)
-    if (ownerId) {
-      where.ownerId = ownerId;
-    }
+    // Try to get from cache
+    const restaurants = await cache.getOrSet(
+      cacheKey,
+      async () => {
+        // Build where clause
+        const where: Prisma.RestaurantWhereInput = {
+          isActive: true,
+        };
 
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-      ];
-    }
+        // Filter by owner ID (for checking if user already has a restaurant)
+        if (ownerId) {
+          where.ownerId = ownerId;
+        }
 
-    if (category) {
-      where.categories = { contains: category };
-    }
+        if (search) {
+          where.OR = [
+            { name: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } },
+          ];
+        }
 
-    if (minRating !== undefined) {
-      where.rating = { gte: minRating };
-    }
+        if (category) {
+          where.categories = { contains: category };
+        }
 
-    if (isOpen !== undefined) {
-      where.isOpen = isOpen;
-    }
+        if (minRating !== undefined) {
+          where.rating = { gte: minRating };
+        }
 
-    // Fetch restaurants
-    const restaurants = await prisma.restaurant.findMany({
-      where,
-      include: {
-        owner: {
-          select: {
-            name: true,
-            email: true,
+        if (isOpen !== undefined) {
+          where.isOpen = isOpen;
+        }
+
+        // Fetch restaurants from database
+        const dbRestaurants = await prisma.restaurant.findMany({
+          where,
+          include: {
+            owner: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
           },
-        },
+          orderBy:
+            sortBy === 'rating'
+              ? { rating: 'desc' }
+              : sortBy === 'popular'
+              ? { totalOrders: 'desc' }
+              : { createdAt: 'desc' },
+        });
+
+        logger.info('Restaurants fetched from database', { count: dbRestaurants.length, filters: { search, category, minRating, isOpen, sortBy } });
+        return dbRestaurants;
       },
-      orderBy:
-        sortBy === 'rating'
-          ? { rating: 'desc' }
-          : sortBy === 'popular'
-          ? { totalOrders: 'desc' }
-          : { createdAt: 'desc' },
-    });
+      CacheTTL.MEDIUM
+    );
 
     // Transform and calculate distances
     const restaurantsWithDetails: RestaurantWithDetails[] = restaurants.map((restaurant) => {
@@ -101,9 +120,13 @@ export async function GET(request: NextRequest) {
       data: restaurantsWithDetails,
     };
 
+    monitor.end({ restaurantCount: restaurantsWithDetails.length });
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error fetching restaurants:', error);
+    logger.error('Error fetching restaurants', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     const response: ApiResponse = {
       success: false,
       error: 'Failed to fetch restaurants',
@@ -200,6 +223,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Invalidate all restaurant list caches
+    await cache.clear('restaurants:*');
+    logger.info('Restaurant created, cache invalidated', { restaurantId: restaurant.id, name: restaurant.name });
+
     const response: ApiResponse = {
       success: true,
       data: restaurant,
@@ -208,7 +235,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(response, { status: 201 });
   } catch (error) {
-    console.error('Error creating restaurant:', error);
+    logger.error('Error creating restaurant', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     const response: ApiResponse = {
       success: false,
       error: 'Failed to create restaurant',

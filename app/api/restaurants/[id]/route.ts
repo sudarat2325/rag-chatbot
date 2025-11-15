@@ -3,43 +3,63 @@ import prisma from '@/lib/prisma';
 import { isRestaurantOpen } from '@/lib/utils/helpers';
 import type { ApiResponse } from '@/lib/types';
 import type { MenuItem, Prisma } from '@prisma/client';
+import { cache, CacheKeys, CacheTTL } from '@/lib/cache/cache';
+import logger from '@/lib/logger/winston';
+import { PerformanceMonitor } from '@/lib/logger/errorHandler';
 
 // GET /api/restaurants/[id] - Get restaurant details
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const monitor = new PerformanceMonitor('GET /api/restaurants/[id]');
+
   try {
     const { id } = await params;
+    const cacheKey = CacheKeys.restaurant(id);
 
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { id },
-      include: {
-        owner: {
-          select: {
-            name: true,
-            email: true,
-            phone: true,
-          },
-        },
-        menuItems: {
-          where: { isAvailable: true },
-          orderBy: { createdAt: 'desc' },
-        },
-        reviews: {
-          take: 10,
-          orderBy: { createdAt: 'desc' },
+    // Try to get from cache
+    const restaurant = await cache.getOrSet(
+      cacheKey,
+      async () => {
+        const dbRestaurant = await prisma.restaurant.findUnique({
+          where: { id },
           include: {
-            customer: {
+            owner: {
               select: {
                 name: true,
-                avatar: true,
+                email: true,
+                phone: true,
+              },
+            },
+            menuItems: {
+              where: { isAvailable: true },
+              orderBy: { createdAt: 'desc' },
+            },
+            reviews: {
+              take: 10,
+              orderBy: { createdAt: 'desc' },
+              include: {
+                customer: {
+                  select: {
+                    name: true,
+                    avatar: true,
+                  },
+                },
               },
             },
           },
-        },
+        });
+
+        if (!dbRestaurant) {
+          return null;
+        }
+
+        logger.info('Restaurant details fetched from database', { restaurantId: id, name: dbRestaurant.name });
+        return dbRestaurant;
       },
-    });
+      CacheTTL.MEDIUM
+    );
 
     if (!restaurant) {
       return NextResponse.json(
@@ -73,9 +93,13 @@ export async function GET(
       },
     };
 
+    monitor.end({ restaurantId: restaurant.id });
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error fetching restaurant:', error);
+    logger.error('Error fetching restaurant', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     const response: ApiResponse = {
       success: false,
       error: 'Failed to fetch restaurant',
@@ -102,6 +126,11 @@ export async function PATCH(
       data: updateData as Prisma.RestaurantUpdateInput,
     });
 
+    // Invalidate caches
+    await cache.del(CacheKeys.restaurant(id));
+    await cache.clear('restaurants:*');
+    logger.info('Restaurant updated, cache invalidated', { restaurantId: id, name: restaurant.name });
+
     const response: ApiResponse = {
       success: true,
       data: restaurant,
@@ -110,7 +139,10 @@ export async function PATCH(
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error updating restaurant:', error);
+    logger.error('Error updating restaurant', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     const response: ApiResponse = {
       success: false,
       error: 'Failed to update restaurant',
@@ -133,6 +165,11 @@ export async function DELETE(
       data: { isActive: false },
     });
 
+    // Invalidate caches
+    await cache.del(CacheKeys.restaurant(id));
+    await cache.clear('restaurants:*');
+    logger.info('Restaurant deactivated, cache invalidated', { restaurantId: id });
+
     const response: ApiResponse = {
       success: true,
       message: 'Restaurant deactivated successfully',
@@ -140,7 +177,10 @@ export async function DELETE(
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error deleting restaurant:', error);
+    logger.error('Error deleting restaurant', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     const response: ApiResponse = {
       success: false,
       error: 'Failed to delete restaurant',

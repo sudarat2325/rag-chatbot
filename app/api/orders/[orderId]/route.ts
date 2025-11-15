@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import type { ApiResponse } from '@/lib/types';
 import { DeliveryStatus, OrderStatus, Prisma, NotificationType } from '@prisma/client';
+import { cache, CacheKeys, CacheTTL } from '@/lib/cache/cache';
+import logger from '@/lib/logger/winston';
+import { PerformanceMonitor } from '@/lib/logger/errorHandler';
 
 const emitters = globalThis as typeof globalThis & {
   emitOrderUpdate?: (orderId: string, status: string, payload?: unknown) => void;
@@ -12,6 +15,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ orderId: string }> }
 ) {
+  const monitor = new PerformanceMonitor('GET /api/orders/[orderId]');
+
   try {
     const { orderId } = await params;
     const searchParams = request.nextUrl.searchParams;
@@ -93,9 +98,13 @@ export async function GET(
       data: order,
     };
 
+    monitor.end({ orderId: order.id });
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error fetching order:', error);
+    logger.error('Error fetching order', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     const response: ApiResponse = {
       success: false,
       error: 'Failed to fetch order',
@@ -298,11 +307,21 @@ export async function PATCH(
       });
     }
 
+    // Invalidate order caches
+    await cache.clear('orders:*');
+    logger.info('Order status updated, cache invalidated', {
+      orderId,
+      status,
+      orderNumber: currentOrder.orderNumber
+    });
+
     // Emit Socket.IO event for real-time updates
     try {
       emitters.emitOrderUpdate?.(orderId, status, updatedOrder);
     } catch (socketError) {
-      console.error('❌ Failed to emit Socket.IO event:', socketError);
+      logger.error('Failed to emit Socket.IO event', {
+        error: socketError instanceof Error ? socketError.message : String(socketError),
+      });
     }
 
     const response: ApiResponse = {
@@ -313,7 +332,10 @@ export async function PATCH(
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error updating order:', error);
+    logger.error('Error updating order', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     const response: ApiResponse = {
       success: false,
       error: 'Failed to update order',
@@ -369,6 +391,10 @@ export async function DELETE(
       }),
     ]);
 
+    // Invalidate order caches
+    await cache.clear('orders:*');
+    logger.info('Order deleted, cache invalidated', { orderId });
+
     const response: ApiResponse = {
       success: true,
       message: 'Order deleted successfully',
@@ -376,7 +402,10 @@ export async function DELETE(
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error deleting order:', error);
+    logger.error('Error deleting order', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     const response: ApiResponse = {
       success: false,
       error: 'Failed to delete order',

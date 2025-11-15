@@ -2,59 +2,86 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import type { ApiResponse, CreateMenuItemDTO } from '@/lib/types';
 import { Prisma } from '@prisma/client';
+import { cache, CacheKeys, CacheTTL } from '@/lib/cache/cache';
+import logger from '@/lib/logger/winston';
+import { PerformanceMonitor } from '@/lib/logger/errorHandler';
 
 // GET /api/menu - Get menu items (with restaurant filter)
 export async function GET(request: NextRequest) {
+  const monitor = new PerformanceMonitor('GET /api/menu');
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const restaurantId = searchParams.get('restaurantId');
     const category = searchParams.get('category');
     const isPopular = searchParams.get('isPopular') === 'true';
 
-    const where: Prisma.MenuItemWhereInput = {
-      isAvailable: true,
-    };
+    // Build cache key based on filters
+    const cacheKey = restaurantId
+      ? CacheKeys.menu(restaurantId)
+      : `menu:all:${JSON.stringify({ category, isPopular })}`;
 
-    if (restaurantId) {
-      where.restaurantId = restaurantId;
-    }
+    // Try to get from cache
+    const menuItems = await cache.getOrSet(
+      cacheKey,
+      async () => {
+        const where: Prisma.MenuItemWhereInput = {
+          isAvailable: true,
+        };
 
-    if (category) {
-      where.category = category;
-    }
+        if (restaurantId) {
+          where.restaurantId = restaurantId;
+        }
 
-    if (isPopular) {
-      where.isPopular = true;
-    }
+        if (category) {
+          where.category = category;
+        }
 
-    const menuItems = await prisma.menuItem.findMany({
-      where,
-      include: {
-        restaurant: {
-          select: {
-            id: true,
-            name: true,
-            logo: true,
-            rating: true,
-            deliveryFee: true,
-            estimatedTime: true,
+        if (isPopular) {
+          where.isPopular = true;
+        }
+
+        const dbMenuItems = await prisma.menuItem.findMany({
+          where,
+          include: {
+            restaurant: {
+              select: {
+                id: true,
+                name: true,
+                logo: true,
+                rating: true,
+                deliveryFee: true,
+                estimatedTime: true,
+              },
+            },
           },
-        },
+          orderBy: [
+            { isPopular: 'desc' },
+            { createdAt: 'desc' },
+          ],
+        });
+
+        logger.info('Menu items fetched from database', {
+          count: dbMenuItems.length,
+          filters: { restaurantId, category, isPopular }
+        });
+        return dbMenuItems;
       },
-      orderBy: [
-        { isPopular: 'desc' },
-        { createdAt: 'desc' },
-      ],
-    });
+      CacheTTL.MEDIUM
+    );
 
     const response: ApiResponse = {
       success: true,
       data: menuItems,
     };
 
+    monitor.end({ menuItemCount: menuItems.length });
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error fetching menu items:', error);
+    logger.error('Error fetching menu items', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     const response: ApiResponse = {
       success: false,
       error: 'Failed to fetch menu items',
@@ -118,6 +145,16 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Invalidate menu and restaurant caches
+    await cache.clear('menu:*');
+    await cache.del(CacheKeys.restaurant(restaurantId));
+    await cache.clear('restaurants:*');
+    logger.info('Menu item created, cache invalidated', {
+      menuItemId: menuItem.id,
+      restaurantId,
+      name: menuItem.name
+    });
+
     const response: ApiResponse = {
       success: true,
       data: menuItem,
@@ -126,7 +163,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(response, { status: 201 });
   } catch (error) {
-    console.error('Error creating menu item:', error);
+    logger.error('Error creating menu item', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     const response: ApiResponse = {
       success: false,
       error: 'Failed to create menu item',

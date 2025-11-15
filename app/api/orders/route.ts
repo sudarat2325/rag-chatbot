@@ -6,6 +6,9 @@ import type { ApiResponse, CreateOrderDTO, OrderWithDetails } from '@/lib/types'
 import { calculateDiscount, incrementPromotionUsage, checkFreeDelivery } from '@/lib/services/promotionService';
 import { PaymentMethod, Prisma } from '@prisma/client';
 import { createHash } from 'crypto';
+import { cache, CacheKeys, CacheTTL } from '@/lib/cache/cache';
+import logger from '@/lib/logger/winston';
+import { PerformanceMonitor } from '@/lib/logger/errorHandler';
 
 const OBJECT_ID_REGEX = /^[a-fA-F0-9]{24}$/;
 
@@ -24,6 +27,8 @@ const normalizeObjectId = (value: string) => {
 
 // GET /api/orders - Get orders (with filters)
 export async function GET(request: NextRequest) {
+  const monitor = new PerformanceMonitor('GET /api/orders');
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const customerId = searchParams.get('customerId');
@@ -32,81 +37,104 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const limit = parseInt(searchParams.get('limit') || '50');
 
-    const where: Prisma.OrderWhereInput = {};
+    // Build cache key based on filters
+    const filterKey = JSON.stringify({ customerId, restaurantId, ownerId, status, limit });
+    const cacheKey = customerId
+      ? CacheKeys.orders(customerId)
+      : `orders:filter:${filterKey}`;
 
-    if (customerId) {
-      where.customerId = customerId;
-    }
+    // Try to get from cache (shorter TTL for orders as they change frequently)
+    const orders = await cache.getOrSet(
+      cacheKey,
+      async () => {
+        const where: Prisma.OrderWhereInput = {};
 
-    if (restaurantId) {
-      where.restaurantId = restaurantId;
-    }
+        if (customerId) {
+          where.customerId = customerId;
+        }
 
-    // Filter by restaurant owner
-    if (ownerId) {
-      where.restaurant = {
-        ownerId: ownerId,
-      };
-    }
-    if (status) {
-      where.status = status as OrderStatus;
-    }
+        if (restaurantId) {
+          where.restaurantId = restaurantId;
+        }
 
-    const orders = await prisma.order.findMany({
-      where,
-      take: limit,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        restaurant: {
-          select: {
-            id: true,
-            name: true,
-            logo: true,
-            phone: true,
-          },
-        },
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-          },
-        },
-        address: true,
-        items: {
+        // Filter by restaurant owner
+        if (ownerId) {
+          where.restaurant = {
+            ownerId: ownerId,
+          };
+        }
+        if (status) {
+          where.status = status as OrderStatus;
+        }
+
+        const dbOrders = await prisma.order.findMany({
+          where,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
           include: {
-            menuItem: {
+            restaurant: {
               select: {
+                id: true,
                 name: true,
-                image: true,
-                category: true,
+                logo: true,
+                phone: true,
               },
             },
-          },
-        },
-        delivery: {
-          select: {
-            status: true,
-            driver: {
+            customer: {
               select: {
                 id: true,
                 name: true,
                 phone: true,
               },
             },
+            address: true,
+            items: {
+              include: {
+                menuItem: {
+                  select: {
+                    name: true,
+                    image: true,
+                    category: true,
+                  },
+                },
+              },
+            },
+            delivery: {
+              select: {
+                status: true,
+                driver: {
+                  select: {
+                    id: true,
+                    name: true,
+                    phone: true,
+                  },
+                },
+              },
+            },
           },
-        },
+        });
+
+        logger.info('Orders fetched from database', {
+          count: dbOrders.length,
+          filters: { customerId, restaurantId, ownerId, status }
+        });
+        return dbOrders;
       },
-    });
+      CacheTTL.SHORT // Use short TTL for orders as they change frequently
+    );
 
     const response: ApiResponse<OrderWithDetails[]> = {
       success: true,
       data: orders as unknown as OrderWithDetails[],
     };
 
+    monitor.end({ orderCount: orders.length });
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error fetching orders:', error);
+    logger.error('Error fetching orders', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     const response: ApiResponse = {
       success: false,
       error: 'Failed to fetch orders',
@@ -183,7 +211,7 @@ export async function POST(request: NextRequest) {
 
     // If menu items not found (demo mode), create them
     if (missingMenuItemIds.length > 0) {
-      console.warn('Some menu items not found, creating demo menu items...');
+      logger.warn('Some menu items not found, creating demo menu items', { missingIds: missingMenuItemIds });
 
       // Create missing menu items for demo
       const demoMenuData = [
@@ -356,6 +384,16 @@ export async function POST(request: NextRequest) {
       await incrementPromotionUsage(discountResult.promotionId);
     }
 
+    // Invalidate order caches
+    await cache.clear('orders:*');
+    logger.info('Order created, cache invalidated', {
+      orderId: order.id,
+      orderNumber,
+      customerId,
+      restaurantId,
+      total
+    });
+
     // Emit Socket.IO events for real-time updates
     try {
       const emitters = globalThis as typeof globalThis & {
@@ -380,7 +418,9 @@ export async function POST(request: NextRequest) {
         });
       }
     } catch (socketError) {
-      console.error('❌ Failed to emit Socket.IO events:', socketError);
+      logger.error('Failed to emit Socket.IO events', {
+        error: socketError instanceof Error ? socketError.message : String(socketError),
+      });
     }
 
     const response: ApiResponse = {
@@ -391,7 +431,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(response, { status: 201 });
   } catch (error) {
-    console.error('Error creating order:', error);
+    logger.error('Error creating order', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     const response: ApiResponse = {
       success: false,
       error: 'Failed to create order',
