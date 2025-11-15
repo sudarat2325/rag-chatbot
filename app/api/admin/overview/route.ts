@@ -103,8 +103,8 @@ export async function GET(request: NextRequest) {
         recentOrders: recentOrders.map((order) => ({
           id: order.id,
           orderNumber: order.orderNumber,
-          restaurant: order.restaurant.name,
-          customer: order.customer.name,
+          restaurant: order.restaurant?.name || 'Unknown',
+          customer: order.customer?.name || 'Unknown',
           total: order.total,
           status: order.status,
           createdAt: order.createdAt,
