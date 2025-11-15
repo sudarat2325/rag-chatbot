@@ -7,7 +7,6 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import { Copy, Check, Bot, User } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { motion } from 'framer-motion';
 import type { Components } from 'react-markdown';
 
 interface MessageItemProps {
@@ -72,21 +71,12 @@ export function MessageItem({ role, content, sources, index }: MessageItemProps)
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.1 }}
-      className={`flex gap-4 ${role === 'user' ? 'justify-end' : 'justify-start'}`}
-    >
+    <div className={`flex gap-4 ${role === 'user' ? 'justify-end' : 'justify-start'} opacity-0 animate-fade-in`}
+      style={{ animationDelay: `${index * 100}ms` }}>
       {role === 'assistant' && (
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ duration: 0.2, delay: index * 0.1 + 0.1 }}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg"
-        >
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg">
           <Bot className="h-5 w-5 text-white" />
-        </motion.div>
+        </div>
       )}
 
       <div
@@ -129,43 +119,30 @@ export function MessageItem({ role, content, sources, index }: MessageItemProps)
 
         {/* Sources */}
         {sources && sources.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            transition={{ duration: 0.3, delay: 0.2 }}
-            className="mt-3 border-t pt-3 text-sm opacity-75 border-gray-300 dark:border-gray-600"
-          >
+          <div className="mt-3 border-t pt-3 text-sm opacity-75 border-gray-300 dark:border-gray-600">
             <p className="font-semibold mb-2 flex items-center gap-2">
               📚 Sources:
             </p>
             <div className="flex flex-wrap gap-2">
               {Array.from(new Set(sources)).map((source, i) => (
-                <motion.span
+                <span
                   key={i}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.2, delay: i * 0.05 }}
                   className="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900/30 px-3 py-1 text-xs font-medium text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-700"
                   title={source}
                 >
                   {source.length > 40 ? source.substring(0, 40) + '...' : source}
-                </motion.span>
+                </span>
               ))}
             </div>
-          </motion.div>
+          </div>
         )}
       </div>
 
       {role === 'user' && (
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ duration: 0.2, delay: index * 0.1 + 0.1 }}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gray-600 to-gray-700 shadow-lg"
-        >
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gray-600 to-gray-700 shadow-lg">
           <User className="h-5 w-5 text-white" />
-        </motion.div>
+        </div>
       )}
-    </motion.div>
+    </div>
   );
 }
