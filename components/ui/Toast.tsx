@@ -52,7 +52,7 @@ function ToastItem({ title, message, type, onClose }: ToastItemProps) {
       icon: CheckCircle,
       bg: 'bg-green-50 dark:bg-green-900/20',
       border: 'border-green-200 dark:border-green-800',
-      icon: 'text-green-600 dark:text-green-400',
+      iconColor: 'text-green-600 dark:text-green-400',
       title: 'text-green-900 dark:text-green-100',
       message: 'text-green-700 dark:text-green-300',
     },
