@@ -236,7 +236,8 @@ export default function PaymentDemoPage() {
                 <PromptPayQR
                   qrCodeUrl={qrCodeUrl}
                   amount={amount}
-                  onConfirm={handleConfirmPayment}
+                  paymentId={paymentId}
+                  onSuccess={handleConfirmPayment}
                   onCancel={handleReset}
                 />
 
