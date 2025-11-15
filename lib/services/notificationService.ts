@@ -6,12 +6,26 @@ const vapidKeys = {
   privateKey: process.env.VAPID_PRIVATE_KEY || '',
 };
 
-if (vapidKeys.publicKey && vapidKeys.privateKey) {
-  webpush.setVapidDetails(
-    process.env.VAPID_EMAIL || 'mailto:your-email@example.com',
-    vapidKeys.publicKey,
-    vapidKeys.privateKey
-  );
+let vapidConfigured = false;
+
+function ensureVapidConfigured() {
+  if (vapidConfigured || !vapidKeys.publicKey || !vapidKeys.privateKey) {
+    return vapidConfigured;
+  }
+
+  try {
+    webpush.setVapidDetails(
+      process.env.VAPID_EMAIL || 'mailto:your-email@example.com',
+      vapidKeys.publicKey,
+      vapidKeys.privateKey
+    );
+    vapidConfigured = true;
+  } catch (error) {
+    console.error('Failed to configure VAPID details:', error);
+    vapidConfigured = false;
+  }
+
+  return vapidConfigured;
 }
 
 export interface PushNotificationPayload {
@@ -30,8 +44,8 @@ export async function sendPushNotification(
   payload: PushNotificationPayload
 ): Promise<boolean> {
   try {
-    // Skip if VAPID keys are not configured
-    if (!vapidKeys.publicKey || !vapidKeys.privateKey) {
+    // Ensure VAPID is configured
+    if (!ensureVapidConfigured()) {
       console.warn('⚠️  Push notifications not configured. Set VAPID keys in .env');
       return false;
     }
