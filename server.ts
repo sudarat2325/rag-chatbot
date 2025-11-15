@@ -12,10 +12,15 @@ import { parse } from 'url';
 import next from 'next';
 import { Server as SocketIOServer } from 'socket.io';
 import type { Socket } from 'socket.io';
+import logger from './lib/logger/winston';
+import { startSystemMetricsCollection } from './lib/logger/metrics';
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
 const port = parseInt(process.env.PORT || '3000', 10);
+
+// Start collecting system metrics
+startSystemMetricsCollection();
 
 // Create Next.js app
 const app = next({ dev, hostname, port });
@@ -45,7 +50,12 @@ app.prepare().then(() => {
       const parsedUrl = parse(req.url!, true);
       await handle(req, res, parsedUrl);
     } catch (err) {
-      console.error('Error occurred handling', req.url, err);
+      logger.error('Error occurred handling request', {
+        url: req.url,
+        method: req.method,
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      });
       res.statusCode = 500;
       res.end('Internal server error');
     }
@@ -65,7 +75,7 @@ app.prepare().then(() => {
   serverGlobals.io = io;
 
   io.on('connection', (socket: Socket) => {
-    console.warn('✅ Client connected:', socket.id);
+    logger.info('Client connected', { socketId: socket.id });
 
     // Handle user authentication
     socket.on('authenticate', (userId: string) => {
@@ -74,43 +84,43 @@ app.prepare().then(() => {
       }
       userSockets.get(userId)!.add(socket.id);
       socket.data.userId = userId;
-      console.warn(`🔐 User ${userId} authenticated on socket ${socket.id}`);
+      logger.info('User authenticated', { userId, socketId: socket.id });
     });
 
     // Join order room for real-time updates
     socket.on('join-order', (orderId: string) => {
       socket.join(`order-${orderId}`);
-      console.warn(`📦 Client ${socket.id} joined order room: ${orderId}`);
+      logger.debug('Client joined order room', { socketId: socket.id, orderId });
     });
 
     // Leave order room
     socket.on('leave-order', (orderId: string) => {
       socket.leave(`order-${orderId}`);
-      console.warn(`📦 Client ${socket.id} left order room: ${orderId}`);
+      logger.debug('Client left order room', { socketId: socket.id, orderId });
     });
 
     // Join delivery tracking room
     socket.on('join-delivery', (orderId: string) => {
       socket.join(`delivery-${orderId}`);
-      console.warn(`🚚 Client ${socket.id} joined delivery room: ${orderId}`);
+      logger.debug('Client joined delivery room', { socketId: socket.id, orderId });
     });
 
     // Leave delivery tracking room
     socket.on('leave-delivery', (orderId: string) => {
       socket.leave(`delivery-${orderId}`);
-      console.warn(`🚚 Client ${socket.id} left delivery room: ${orderId}`);
+      logger.debug(`🚚 Client ${socket.id} left delivery room: ${orderId}`);
     });
 
     // Join restaurant room (for restaurant owners)
     socket.on('join-restaurant', (restaurantId: string) => {
       socket.join(`restaurant-${restaurantId}`);
-      console.warn(`🏪 Client ${socket.id} joined restaurant room: ${restaurantId}`);
+      logger.debug(`🏪 Client ${socket.id} joined restaurant room: ${restaurantId}`);
     });
 
     // Leave restaurant room
     socket.on('leave-restaurant', (restaurantId: string) => {
       socket.leave(`restaurant-${restaurantId}`);
-      console.warn(`🏪 Client ${socket.id} left restaurant room: ${restaurantId}`);
+      logger.debug(`🏪 Client ${socket.id} left restaurant room: ${restaurantId}`);
     });
 
     // Update driver location
@@ -128,7 +138,7 @@ app.prepare().then(() => {
         },
         timestamp: new Date().toISOString(),
       });
-      console.warn(`📍 Driver location updated for order ${data.orderId}`);
+      logger.debug(`📍 Driver location updated for order ${data.orderId}`);
     });
 
     socket.on('disconnect', () => {
@@ -143,7 +153,7 @@ app.prepare().then(() => {
           }
         }
       }
-      console.warn('❌ Client disconnected:', socket.id);
+      logger.debug('❌ Client disconnected:', socket.id);
     });
   });
 
@@ -155,7 +165,7 @@ app.prepare().then(() => {
       data,
       timestamp: new Date().toISOString(),
     });
-    console.warn(`📤 Emitted order status update for ${orderId}: ${status}`);
+    logger.debug(`📤 Emitted order status update for ${orderId}: ${status}`);
   };
 
   serverGlobals.emitDeliveryUpdate = (
@@ -169,7 +179,7 @@ app.prepare().then(() => {
       driverInfo,
       timestamp: new Date().toISOString(),
     });
-    console.warn(`📍 Emitted delivery location update for ${orderId}`);
+    logger.debug(`📍 Emitted delivery location update for ${orderId}`);
   };
 
   serverGlobals.emitUserNotification = (userId: string, notification: GenericPayload) => {
@@ -178,7 +188,7 @@ app.prepare().then(() => {
       sockets.forEach(socketId => {
         io.to(socketId).emit('notification', notification);
       });
-      console.warn(`🔔 Emitted notification to user ${userId}`);
+      logger.debug(`🔔 Emitted notification to user ${userId}`);
     }
   };
 
@@ -187,7 +197,7 @@ app.prepare().then(() => {
     notification: GenericPayload
   ) => {
     io.to(`restaurant-${restaurantId}`).emit('restaurant-notification', notification);
-    console.warn(`🏪 Emitted notification to restaurant ${restaurantId}`);
+    logger.debug(`🏪 Emitted notification to restaurant ${restaurantId}`);
   };
 
   serverGlobals.emitChatMessage = (orderId: string, message: unknown) => {
@@ -198,7 +208,7 @@ app.prepare().then(() => {
     const room = io.sockets.adapter.rooms.get(roomName);
     const socketsInRoom = room ? Array.from(room) : [];
 
-    console.warn(`💬 Emitting chat message:`, {
+    logger.debug(`💬 Emitting chat message:`, {
       room: roomName,
       event: eventName,
       socketsInRoom: socketsInRoom.length,
@@ -211,7 +221,7 @@ app.prepare().then(() => {
 
   // Start server
   server.listen(port, () => {
-    console.warn(`
+    logger.debug(`
 ╔══════════════════════════════════════════════════════════╗
 ║                                                          ║
 ║  🍕 Food Delivery System with RAG Chatbot               ║
