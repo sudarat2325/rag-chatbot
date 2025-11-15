@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
         where: {
           role: 'DRIVER',
           driverProfile: {
-            some: {
+            is: {
               isAvailable: true,
             },
           },
