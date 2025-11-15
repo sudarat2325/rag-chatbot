@@ -14,6 +14,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import type { Socket } from 'socket.io';
 import logger from './lib/logger/winston';
 import { startSystemMetricsCollection } from './lib/logger/metrics';
+import { initRedis } from './lib/cache/redis';
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
@@ -21,6 +22,13 @@ const port = parseInt(process.env.PORT || '3000', 10);
 
 // Start collecting system metrics
 startSystemMetricsCollection();
+
+// Initialize Redis (optional - app works without it)
+initRedis().catch((err) => {
+  logger.warn('App starting without Redis cache', {
+    error: err instanceof Error ? err.message : String(err),
+  });
+});
 
 // Create Next.js app
 const app = next({ dev, hostname, port });
