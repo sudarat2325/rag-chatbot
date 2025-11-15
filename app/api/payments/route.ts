@@ -123,6 +123,7 @@ export async function POST(request: NextRequest) {
         data: {
           customerId: userId,
           restaurantId: '690b86f51ae3dae3cb00cbb3', // Demo restaurant ID
+          addressId: '691761c27b375d8913c01c9c', // Demo address ID
           orderNumber: `DEMO-${Date.now()}`,
           total: demoAmount,
           subtotal: demoAmount,
