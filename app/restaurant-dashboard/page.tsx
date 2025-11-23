@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSocket } from '@/lib/hooks/useSocket';
+import { useRoleGuard } from '@/lib/hooks/useRoleGuard';
 import { Clock, CheckCircle, Truck, Package, XCircle, Filter, RefreshCw, Store, LogOut } from 'lucide-react';
 
 interface OrderItem {
@@ -39,9 +40,10 @@ function RestaurantDashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const highlightOrderId = searchParams.get('orderId');
-  const [userId, setUserId] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const { session, status } = useRoleGuard({ roles: ['RESTAURANT_OWNER', 'ADMIN'] });
+  const userId = session?.user?.id ?? null;
+  const userRole = session?.user?.role ?? null;
+  const userEmail = session?.user?.email ?? null;
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
@@ -55,29 +57,17 @@ function RestaurantDashboardContent() {
   const orderRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   useEffect(() => {
-    // Check authentication
-    const storedUserId = localStorage.getItem('userId');
-    const storedUserRole = localStorage.getItem('userRole');
-    const storedUserEmail = localStorage.getItem('userEmail');
+    if (status === 'loading') return;
 
-    console.warn('🔍 Restaurant Dashboard - Auth Check:', {
-      userId: storedUserId,
-      role: storedUserRole,
-      email: storedUserEmail
-    });
-
-    if (!storedUserId) {
+    if (!userId || !userRole) {
       alert('⚠️ กรุณา Login ก่อนเข้าใช้งาน');
       router.push('/login');
       return;
     }
 
-    if (storedUserRole !== 'RESTAURANT_OWNER') {
-      alert(`❌ คุณไม่มีสิทธิ์เข้าถึงหน้านี้\n\nRole ปัจจุบัน: ${storedUserRole}\nEmail: ${storedUserEmail}\n\nต้องเป็น RESTAURANT_OWNER เท่านั้น`);
-      // Redirect based on actual role
-      if (storedUserRole === 'ADMIN') {
-        router.push('/admin');
-      } else if (storedUserRole === 'DRIVER') {
+    if (userRole !== 'RESTAURANT_OWNER' && userRole !== 'ADMIN') {
+      alert(`❌ คุณไม่มีสิทธิ์เข้าถึงหน้านี้\n\nRole ปัจจุบัน: ${userRole}\nEmail: ${userEmail}\n\nต้องเป็น RESTAURANT_OWNER เท่านั้น`);
+      if (userRole === 'DRIVER') {
         router.push('/driver/dashboard');
       } else {
         router.push('/food');
@@ -85,11 +75,8 @@ function RestaurantDashboardContent() {
       return;
     }
 
-    setUserId(storedUserId);
-    setUserRole(storedUserRole);
-    setUserEmail(storedUserEmail);
-    fetchRestaurantAndOrders(storedUserId);
-  }, [router]);
+    fetchRestaurantAndOrders(userId);
+  }, [router, status, userId, userRole, userEmail]);
 
   useEffect(() => {
     if (restaurant) {
@@ -262,9 +249,7 @@ function RestaurantDashboardContent() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('userId');
-    localStorage.removeItem('userRole');
-    router.push('/login');
+    router.push('/food');
   };
 
   const getStatusColor = (status: string) => {
