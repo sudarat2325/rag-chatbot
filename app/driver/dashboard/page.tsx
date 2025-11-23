@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { signOut } from 'next-auth/react';
 import { useSocket } from '@/lib/hooks/useSocket';
 import { ChatBox } from '@/components/chat/ChatBox';
@@ -50,6 +50,17 @@ interface Delivery {
   };
 }
 
+interface DriverProfileStats {
+  id: string;
+  vehicleType?: string | null;
+  vehiclePlate?: string | null;
+  rating?: number | null;
+  totalDeliveries?: number | null;
+  totalEarnings?: number | null;
+  isOnline?: boolean | null;
+  isAvailable?: boolean | null;
+}
+
 export default function DriverDashboard() {
   const { session, status } = useRoleGuard({ roles: ['DRIVER'] });
   const userId = session?.user?.id;
@@ -74,8 +85,15 @@ export default function DriverDashboard() {
   const [showCustomerChat, setShowCustomerChat] = useState(false);
   const [todayStats, setTodayStats] = useState({ deliveries: 0, earnings: 0 });
   const [acceptingDeliveryId, setAcceptingDeliveryId] = useState<string | null>(null);
+  const [driverProfile, setDriverProfile] = useState<DriverProfileStats | null>(null);
 
-  const { joinOrder, leaveOrder, joinDelivery, leaveDelivery } = useSocket(userId);
+  const {
+    joinOrder,
+    leaveOrder,
+    joinDelivery,
+    leaveDelivery,
+    updateLocation,
+  } = useSocket(userId);
 
   const calculateDistanceKm = (
     targetLat?: number | null,
@@ -201,6 +219,7 @@ export default function DriverDashboard() {
       const profileData = await profileResponse.json();
 
       if (profileData.success) {
+        setDriverProfile(profileData.data?.driverProfile ?? null);
         // Check if driver profile exists
         if (!profileData.data?.driverProfile) {
           // Create driver profile automatically
@@ -219,23 +238,18 @@ export default function DriverDashboard() {
           if (createData.success) {
             console.warn('Driver profile created successfully');
             determinedOnline = false;
+            setDriverProfile(createData.data ?? null);
           }
         } else {
           determinedOnline = profileData.data.driverProfile.isOnline ?? false;
         }
 
         setIsOnline(determinedOnline ?? false);
-        if (determinedOnline) {
-          localStorage.setItem('driverOnlineStatus', 'true');
-        } else {
-          localStorage.removeItem('driverOnlineStatus');
-        }
       }
     } catch (error) {
       console.error('Error loading driver profile:', error);
     } finally {
-      const fallbackOnline =
-        determinedOnline ?? (localStorage.getItem('driverOnlineStatus') === 'true');
+      const fallbackOnline = determinedOnline ?? false;
       fetchDeliveries(fallbackOnline);
     }
   };
@@ -309,6 +323,7 @@ export default function DriverDashboard() {
     coords: { latitude: number; longitude: number }
   ) => {
     try {
+      updateLocation(deliveryId, coords.latitude, coords.longitude);
       await fetch(`/api/deliveries/${deliveryId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -420,11 +435,9 @@ export default function DriverDashboard() {
 
       if (data.success) {
         setIsOnline(newStatus);
-        if (newStatus) {
-          localStorage.setItem('driverOnlineStatus', 'true');
-        } else {
-          localStorage.removeItem('driverOnlineStatus');
-        }
+        setDriverProfile((prev) =>
+          prev ? { ...prev, isOnline: newStatus, isAvailable: newStatus } : prev
+        );
 
         if (newStatus) {
           // Going online - fetch available deliveries
@@ -446,6 +459,22 @@ export default function DriverDashboard() {
     localStorage.removeItem('userEmail');
     await signOut({ callbackUrl: '/login' });
   };
+
+  const levelInfo = useMemo(() => {
+    const deliveries = driverProfile?.totalDeliveries ?? 0;
+    const level = Math.min(10, Math.floor(deliveries / 25) + 1);
+    const remainder = deliveries % 25;
+    const progress = remainder / 25;
+    const nextLevelDeliveries = remainder === 0 ? 25 : 25 - remainder;
+    return {
+      deliveries,
+      level,
+      progress,
+      nextLevelDeliveries,
+      earnings: driverProfile?.totalEarnings ?? 0,
+      rating: driverProfile?.rating ?? 5,
+    };
+  }, [driverProfile]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-green-50 dark:bg-gray-900">
@@ -507,6 +536,63 @@ export default function DriverDashboard() {
                 <LogOut className="w-5 h-5" />
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Gamification / Stats */}
+      <div className="container mx-auto px-4 -mt-8 mb-8">
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-6 border border-orange-100 dark:border-orange-900/30">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-orange-500">ระดับไรเดอร์</p>
+              <span className="text-xs text-gray-500">Lv.{levelInfo.level}/10</span>
+            </div>
+            <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
+              Lv.{levelInfo.level}
+            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              อีก {levelInfo.nextLevelDeliveries} งานจะถึงระดับถัดไป
+            </p>
+            <div className="mt-4 h-3 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-orange-500 to-pink-500 transition-all"
+                style={{ width: `${Math.min(100, levelInfo.progress * 100)}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-6 border border-emerald-100 dark:border-emerald-900/30">
+            <p className="text-sm font-medium text-emerald-500">รายได้รวม</p>
+            <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
+              ฿{levelInfo.earnings.toLocaleString()}
+            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              รวมทั้งสิ้น {levelInfo.deliveries} งาน
+            </p>
+            <div className="mt-3 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+              <DollarSign className="w-4 h-4 text-emerald-500" />
+              {todayStats.earnings > 0
+                ? `วันนี้ +฿${todayStats.earnings.toLocaleString()}`
+                : 'ยังไม่มีรายได้วันนี้'}
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-6 border border-blue-100 dark:border-blue-900/30">
+            <p className="text-sm font-medium text-blue-500">เรตติ้ง</p>
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">
+                {levelInfo.rating?.toFixed(1)}
+              </p>
+              <div className="flex gap-1 text-amber-400">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <span key={index}>{index < Math.round(levelInfo.rating ?? 5) ? '★' : '☆'}</span>
+                ))}
+              </div>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              รักษาคะแนนสูงเพื่อปลดล็อกโบนัสพิเศษ
+            </p>
           </div>
         </div>
       </div>
