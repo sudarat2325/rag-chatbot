@@ -91,7 +91,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify password
+    // Verify password (skip OAuth-only accounts without stored hash)
+    if (!user.password) {
+      return NextResponse.json(
+        { success: false, error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' },
+        { status: 401 }
+      );
+    }
+
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
