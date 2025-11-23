@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "react-hot-toast";
 import { PWAProvider } from "@/components/pwa/PWAProvider";
+import { AuthSessionProvider } from "@/components/providers/session-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -54,33 +55,35 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider defaultTheme="light" storageKey="rag-theme">
           <PWAProvider>
-            {children}
-            <Toaster
-              position="bottom-center"
-              containerStyle={{
-                zIndex: 9998,
-              }}
-              toastOptions={{
-                duration: 3000,
-                style: {
-                  background: 'var(--toast-bg)',
-                  color: 'var(--toast-color)',
-                  border: '1px solid var(--toast-border)',
-                },
-                success: {
-                  iconTheme: {
-                    primary: '#10b981',
-                    secondary: '#fff',
+            <AuthSessionProvider>
+              {children}
+              <Toaster
+                position="bottom-center"
+                containerStyle={{
+                  zIndex: 9998,
+                }}
+                toastOptions={{
+                  duration: 3000,
+                  style: {
+                    background: 'var(--toast-bg)',
+                    color: 'var(--toast-color)',
+                    border: '1px solid var(--toast-border)',
                   },
-                },
-                error: {
-                  iconTheme: {
-                    primary: '#ef4444',
-                    secondary: '#fff',
+                  success: {
+                    iconTheme: {
+                      primary: '#10b981',
+                      secondary: '#fff',
+                    },
                   },
-                },
-              }}
-            />
+                  error: {
+                    iconTheme: {
+                      primary: '#ef4444',
+                      secondary: '#fff',
+                    },
+                  },
+                }}
+              />
+            </AuthSessionProvider>
           </PWAProvider>
         </ThemeProvider>
       </body>

@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 import { useSocket } from '@/lib/hooks/useSocket';
 import { ChatBox } from '@/components/chat/ChatBox';
+import { useRoleGuard } from '@/lib/hooks/useRoleGuard';
 import {
   Bike,
   MapPin,
@@ -50,9 +51,21 @@ interface Delivery {
 }
 
 export default function DriverDashboard() {
-  const router = useRouter();
-  const [userId, setUserId] = useState<string | undefined>();
-  const [userName, setUserName] = useState<string>('ไรเดอร์');
+  const { session, status } = useRoleGuard({ roles: ['DRIVER'] });
+  const userId = session?.user?.id;
+  const userName = session?.user?.name ?? 'ไรเดอร์';
+
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <p className="text-gray-600 dark:text-gray-300 animate-pulse">กำลังตรวจสอบสิทธิ์...</p>
+      </div>
+    );
+  }
+
+  if (!userId) {
+    return null;
+  }
   const [availableDeliveries, setAvailableDeliveries] = useState<Delivery[]>([]);
   const [currentDelivery, setCurrentDelivery] = useState<Delivery | null>(null);
   const [isOnline, setIsOnline] = useState(false);
@@ -99,48 +112,17 @@ export default function DriverDashboard() {
   };
 
   useEffect(() => {
-    const storedUserId = localStorage.getItem('userId');
-    const storedUserRole = localStorage.getItem('userRole');
-    const storedUserName = localStorage.getItem('userName');
-
-    if (!storedUserId) {
-      alert('⚠️ กรุณา Login ก่อนเข้าใช้งาน');
-      router.push('/login');
-      return;
+    if (userId) {
+      initializeDriver(userId);
     }
-
-    if (storedUserRole !== 'DRIVER') {
-      const wantToBeDriver = confirm(
-        '❌ คุณยังไม่ได้สมัครเป็น Rider\n\nต้องการสมัครเป็น Rider เพื่อรับงานส่งอาหารหรือไม่?'
-      );
-
-      if (wantToBeDriver) {
-        router.push('/become-driver');
-      } else {
-        // Redirect based on actual role
-        if (storedUserRole === 'ADMIN') {
-          router.push('/admin');
-        } else if (storedUserRole === 'RESTAURANT_OWNER') {
-          router.push('/restaurant-dashboard');
-        } else {
-          router.push('/food');
-        }
-      }
-      return;
-    }
-
-    setUserName(storedUserName || 'ไรเดอร์');
-    setUserId(storedUserId);
-    initializeDriver(storedUserId);
-  }, [router]);
+  }, [userId]);
 
   // Fetch deliveries when online status changes
   useEffect(() => {
-    if (userId) {
-      fetchDeliveries();
-      fetchTodayStats();
-    }
-  }, [isOnline]);
+    if (!userId) return;
+    fetchDeliveries();
+    fetchTodayStats();
+  }, [userId, isOnline]);
 
   useEffect(() => {
     if (!userId || !isOnline) {
@@ -259,13 +241,11 @@ export default function DriverDashboard() {
   };
 
   const fetchDeliveries = async (onlineOverride?: boolean) => {
+    if (!userId) return;
+
     try {
-      const storedUserId = localStorage.getItem('userId');
-
-      if (!storedUserId) return;
-
       // Fetch current delivery (assigned to this driver)
-      const currentResponse = await fetch(`/api/deliveries?driverId=${storedUserId}&status=DRIVER_ASSIGNED,DRIVER_ARRIVED,PICKED_UP,ON_THE_WAY`);
+      const currentResponse = await fetch(`/api/deliveries?driverId=${userId}&status=DRIVER_ASSIGNED,DRIVER_ARRIVED,PICKED_UP,ON_THE_WAY`);
       const currentData = await currentResponse.json();
 
       if (currentData.success && currentData.data && currentData.data.length > 0) {
@@ -295,11 +275,10 @@ export default function DriverDashboard() {
   };
 
   const fetchTodayStats = async () => {
-    try {
-      const storedUserId = localStorage.getItem('userId');
-      if (!storedUserId) return;
+    if (!userId) return;
 
-      const response = await fetch(`/api/deliveries?driverId=${storedUserId}&status=DELIVERED`);
+    try {
+      const response = await fetch(`/api/deliveries?driverId=${userId}&status=DELIVERED`);
       const data = await response.json();
 
       if (data.success && Array.isArray(data.data)) {
@@ -383,8 +362,7 @@ export default function DriverDashboard() {
       // Set loading state to prevent double-click
       setAcceptingDeliveryId(deliveryId);
 
-      const storedUserId = localStorage.getItem('userId');
-      if (!storedUserId) {
+      if (!userId) {
         setAcceptingDeliveryId(null);
         return;
       }
@@ -394,7 +372,7 @@ export default function DriverDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           deliveryId,
-          driverId: storedUserId,
+          driverId: userId,
         }),
       });
 
@@ -428,12 +406,11 @@ export default function DriverDashboard() {
 
   const toggleOnlineStatus = async () => {
     try {
-      const storedUserId = localStorage.getItem('userId');
-      if (!storedUserId) return;
+      if (!userId) return;
 
       const newStatus = !isOnline;
 
-      const response = await fetch(`/api/drivers/${storedUserId}`, {
+      const response = await fetch(`/api/drivers/${userId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isOnline: newStatus, isAvailable: newStatus }),
@@ -462,12 +439,12 @@ export default function DriverDashboard() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     localStorage.removeItem('userId');
     localStorage.removeItem('userRole');
     localStorage.removeItem('userName');
     localStorage.removeItem('userEmail');
-    router.push('/login');
+    await signOut({ callbackUrl: '/login' });
   };
 
   return (

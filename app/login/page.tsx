@@ -22,49 +22,48 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
+      const result = await signIn('credentials', {
+        email: formData.email,
+        password: formData.password,
+        redirect: false,
       });
 
-      const data = await response.json();
-
-      if (data.success) {
-        // Store user info including role
-        localStorage.setItem('userId', data.data.id);
-        localStorage.setItem('userEmail', data.data.email);
-        localStorage.setItem('userName', data.data.name);
-        localStorage.setItem('userRole', data.data.role);
-
-        // Redirect based on role
-        const userRole = data.data.role;
-        let redirectPath = '/food'; // Default for CUSTOMER
-
-        switch (userRole) {
-          case 'ADMIN':
-            redirectPath = '/admin';
-            break;
-          case 'RESTAURANT_OWNER':
-            redirectPath = '/restaurant-dashboard';
-            break;
-          case 'DRIVER':
-            redirectPath = '/driver/dashboard';
-            break;
-          case 'CUSTOMER':
-          default:
-            redirectPath = '/food';
-            break;
-        }
-
-        console.warn(`🔐 Login successful! Role: ${userRole} → Redirecting to ${redirectPath}`);
-        router.push(redirectPath);
-      } else {
-        setError(data.error || 'เข้าสู่ระบบไม่สำเร็จ');
+      if (result?.error) {
+        setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+        return;
       }
+
+      const sessionResponse = await fetch('/api/auth/session');
+      const sessionData = sessionResponse.ok ? await sessionResponse.json() : null;
+      const user = sessionData?.user;
+
+      if (!user?.id) {
+        setError('ไม่สามารถดึงข้อมูลผู้ใช้ได้ กรุณาลองใหม่');
+        return;
+      }
+
+      localStorage.setItem('userId', user.id);
+      if (user.email) localStorage.setItem('userEmail', user.email);
+      if (user.name) localStorage.setItem('userName', user.name);
+      if (user.role) localStorage.setItem('userRole', user.role);
+
+      let redirectPath = '/food';
+      switch (user.role) {
+        case 'ADMIN':
+          redirectPath = '/admin';
+          break;
+        case 'RESTAURANT_OWNER':
+          redirectPath = '/restaurant-dashboard';
+          break;
+        case 'DRIVER':
+          redirectPath = '/driver/dashboard';
+          break;
+        default:
+          redirectPath = '/food';
+      }
+
+      console.warn(`🔐 Login successful! Role: ${user.role} → Redirecting to ${redirectPath}`);
+      router.push(redirectPath);
     } catch (err) {
       console.error('Login error:', err);
       setError('เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่อีกครั้ง');
