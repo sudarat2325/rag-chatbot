@@ -53,8 +53,8 @@ function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const restaurantId = searchParams.get('restaurantId');
-
-  const [userId, setUserId] = useState<string | undefined>();
+  const { session, status } = useRoleGuard();
+  const userId = session?.user?.id;
   const [loading, setLoading] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState('');
   const [addressData, setAddressData] = useState<UserAddress | null>(null);
@@ -78,21 +78,20 @@ function CheckoutContent() {
   });
 
   useEffect(() => {
-    const storedUserId = localStorage.getItem('userId');
-    if (storedUserId && storedUserId !== 'demo-user-id') {
-      setUserId(storedUserId);
-      fetchUserAddress(storedUserId);
-    } else {
-      // No valid user ID, redirect to login
+    if (status === 'loading') return;
+
+    if (!userId) {
       alert('กรุณาเข้าสู่ระบบก่อนทำการสั่งอาหาร');
       router.push('/login');
+      return;
     }
 
-    // Fetch restaurant data
+    fetchUserAddress(userId);
+
     if (restaurantId) {
       fetchRestaurant();
     }
-  }, [router, restaurantId]);
+  }, [router, restaurantId, userId, status]);
 
   const fetchRestaurant = async () => {
     try {

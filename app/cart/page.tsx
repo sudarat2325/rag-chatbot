@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { ShoppingCart, Trash2, Plus, Minus, ArrowRight } from 'lucide-react';
+import { useRoleGuard } from '@/lib/hooks/useRoleGuard';
 
 interface CartItem {
   id: string;
@@ -17,24 +18,23 @@ interface CartItem {
 
 export default function CartPage() {
   const router = useRouter();
-  const [userId, setUserId] = useState<string | undefined>();
+  const { session, status } = useRoleGuard();
+  const userId = session?.user?.id;
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [minimumOrder, setMinimumOrder] = useState(0);
 
   useEffect(() => {
-    const storedUserId = localStorage.getItem('userId');
-    if (storedUserId) {
-      setUserId(storedUserId);
+    if (status === 'loading') return;
+    if (!userId) {
+      router.push('/login');
+      return;
     }
 
-    // Load cart from localStorage
     const cart = localStorage.getItem('cart');
     if (cart) {
       try {
         const items = JSON.parse(cart);
         setCartItems(items);
-
-        // Fetch restaurant minimum order
         if (items.length > 0) {
           fetchRestaurantInfo(items[0].restaurantId);
         }
@@ -42,7 +42,7 @@ export default function CartPage() {
         console.error('Error parsing cart:', error);
       }
     }
-  }, []);
+  }, [status, userId, router]);
 
   const fetchRestaurantInfo = async (restaurantId: string) => {
     try {
@@ -80,7 +80,7 @@ export default function CartPage() {
   };
 
   const handleCheckout = () => {
-    if (!userId || userId === 'demo-user-id') {
+    if (!userId) {
       alert('กรุณาเข้าสู่ระบบก่อนทำการสั่งอาหาร');
       router.push('/login');
       return;
