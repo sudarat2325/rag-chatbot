@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { useRoleGuard } from '@/lib/hooks/useRoleGuard';
 import {
   Bell,
   Package,
@@ -26,22 +27,23 @@ interface Notification {
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const [userId, setUserId] = useState<string | undefined>();
+  const { session, status } = useRoleGuard();
+  const userId = session?.user?.id;
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread' | 'read'>('all');
 
   useEffect(() => {
-    const storedUserId = localStorage.getItem('userId');
-    if (storedUserId) {
-      setUserId(storedUserId);
-      fetchNotifications(storedUserId);
+    if (status === 'loading') return;
+    if (userId) {
+      fetchNotifications(userId);
     } else {
       setLoading(false);
     }
-  }, []);
+  }, [userId, status]);
 
   const fetchNotifications = async (uid: string) => {
+    if (!uid) return;
     try {
       setLoading(true);
       const response = await fetch(`/api/notifications?userId=${uid}&limit=100`);
@@ -148,6 +150,20 @@ export default function NotificationsPage() {
       alert('เกิดข้อผิดพลาดในการลบการแจ้งเตือน');
     }
   };
+
+  if (status === 'loading') {
+    return (
+      <MainLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <p className="text-gray-500 dark:text-gray-400">กำลังโหลด...</p>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (!userId) {
+    return null;
+  }
 
   const handleNotificationClick = (notification: Notification) => {
     // Mark as read first
