@@ -26,6 +26,8 @@ export function NotificationBell({ userId }: { userId?: string }) {
   }, [userId]);
 
   const fetchNotifications = async () => {
+    if (!userId) return;
+
     try {
       setLoading(true);
       const response = await fetch(`/api/notifications?userId=${userId}&limit=10`);
@@ -34,39 +36,12 @@ export function NotificationBell({ userId }: { userId?: string }) {
       if (data.success && Array.isArray(data.data)) {
         setNotifications(data.data);
       } else {
-        // If no notifications, use demo data for now
-        setNotifications([
-          {
-            id: '1',
-            type: 'ORDER_ACCEPTED',
-            title: 'ออเดอร์ของคุณได้รับการยืนยันแล้ว',
-            message: 'ร้านอาหารกำลังเตรียมอาหารของคุณ',
-            isRead: false,
-            createdAt: new Date().toISOString(),
-            orderId: 'demo-order-1',
-          },
-          {
-            id: '2',
-            type: 'PROMOTION',
-            title: 'โปรโมชั่นพิเศษสำหรับคุณ!',
-            message: 'รับส่วนลด 50% สำหรับคำสั่งซื้อถัดไป',
-            isRead: false,
-            createdAt: new Date(Date.now() - 3600000).toISOString(),
-          },
-          {
-            id: '3',
-            type: 'ORDER_DELIVERED',
-            title: 'จัดส่งสำเร็จ',
-            message: 'ออเดอร์ #12345 ถึงที่หมายแล้ว ขอบคุณที่ใช้บริการ',
-            isRead: true,
-            createdAt: new Date(Date.now() - 7200000).toISOString(),
-            orderId: 'demo-order-2',
-          },
-        ]);
+        // No notifications found - set empty array
+        setNotifications([]);
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);
-      // Set demo data on error
+      // On error, set empty array (not demo data)
       setNotifications([]);
     } finally {
       setLoading(false);

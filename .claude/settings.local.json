@@ -57,7 +57,8 @@
       "Bash(python3:*)",
       "Bash(npm run test:unit:*)",
       "Bash(npm run test:api:*)",
-      "Bash(npm test:*)"
+      "Bash(npm test:*)",
+      "Bash(npm uninstall:*)"
     ],
     "deny": [],
     "ask": []

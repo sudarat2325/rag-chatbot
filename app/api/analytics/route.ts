@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
     };
 
     // Calculate average order value
-    const avgOrderValue = totalOrders > 0 ? totalRevenue / completedOrders : 0;
+    const avgOrderValue = completedOrders > 0 ? totalRevenue / completedOrders : 0;
 
     // Get reviews statistics
     const reviews = await prisma.review.findMany({

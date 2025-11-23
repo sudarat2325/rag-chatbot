@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     try {
       const dbStart = Date.now();
-      await prisma.$queryRaw`SELECT 1`;
+      await prisma.$runCommandRaw({ ping: 1 });
       dbResponseTime = Date.now() - dbStart;
       dbStatus = 'up';
     } catch (error) {
