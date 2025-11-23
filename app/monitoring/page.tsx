@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { RefreshCw, Activity, Database, Cpu, HardDrive, Clock, AlertCircle } from 'lucide-react';
+import { RefreshCw, Activity, Database, Cpu, Clock, AlertCircle } from 'lucide-react';
 
 interface HealthData {
   status: 'healthy' | 'unhealthy';

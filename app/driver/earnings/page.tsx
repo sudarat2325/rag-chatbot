@@ -2,16 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  DollarSign,
-  TrendingUp,
-  Calendar,
-  ArrowLeft,
-  Download,
-  Clock,
-  Package,
-  Star,
-} from 'lucide-react';
+import { DollarSign, TrendingUp, Calendar, ArrowLeft, Download, Clock, Package } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 
 interface Delivery {

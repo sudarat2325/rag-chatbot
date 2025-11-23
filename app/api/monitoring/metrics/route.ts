@@ -8,7 +8,7 @@ interface ApiResponse<T = unknown> {
 }
 
 // GET /api/monitoring/metrics - Get all metrics
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const summary = metrics.getSummary();
 

@@ -10,7 +10,7 @@ interface ApiResponse<T = unknown> {
 }
 
 // GET /api/admin/overview - Get system overview
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // Get counts
     const [

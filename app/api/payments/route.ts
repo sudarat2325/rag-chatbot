@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import {
-  generatePromptPayQR,
-  createPayment,
-  processWalletPayment,
-  topUpWallet,
-} from '@/lib/services/payment';
+import type { PaymentMethod } from '@prisma/client';
+import { generatePromptPayQR, createPayment, processWalletPayment } from '@/lib/services/payment';
 
 const prisma = new PrismaClient();
 
@@ -13,6 +9,13 @@ interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
+}
+
+interface PaymentRequestBody {
+  orderId?: string;
+  method?: PaymentMethod;
+  amount?: number;
+  userId?: string;
 }
 
 // GET /api/payments - Get payment history
@@ -101,7 +104,7 @@ export async function GET(request: NextRequest) {
 // POST /api/payments - Create payment
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body: PaymentRequestBody = await request.json();
     const { orderId, method, amount: demoAmount, userId } = body;
 
     if (!method) {
@@ -114,11 +117,9 @@ export async function POST(request: NextRequest) {
 
     // Demo mode: if no orderId, create a temporary demo order
     let order;
-    let isDemoMode = false;
 
     if (!orderId && demoAmount && userId) {
       // Demo mode - create temporary order
-      isDemoMode = true;
       order = await prisma.order.create({
         data: {
           customerId: userId,
@@ -130,7 +131,7 @@ export async function POST(request: NextRequest) {
           deliveryFee: 0,
           status: 'PENDING',
           paymentStatus: 'PENDING',
-          paymentMethod: method as any,
+          paymentMethod: method,
         },
       });
     } else if (orderId) {

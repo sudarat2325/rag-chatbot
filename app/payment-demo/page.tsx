@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { PromptPayQR } from '@/components/payment/PromptPayQR';
 import { WalletCard } from '@/components/payment/WalletCard';
 import { LoyaltyCard } from '@/components/payment/LoyaltyCard';
-import { ArrowLeft, Wallet, QrCode, CreditCard, Banknote } from 'lucide-react';
+import { ArrowLeft, Wallet, QrCode } from 'lucide-react';
 import Link from 'next/link';
 
 export default function PaymentDemoPage() {

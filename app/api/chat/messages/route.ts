@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import type { ApiResponse } from '@/lib/types';
+import logger from '@/lib/logger/winston';
 
 // GET /api/chat/messages - Get chat messages for an order
 export async function GET(request: NextRequest) {
@@ -131,12 +132,12 @@ export async function POST(request: NextRequest) {
         imageUrl: chatMessage.imageUrl,
       };
 
-      console.log('📤 Emitting chat message to room:', {
+      logger.info('Emitting chat message to room', {
         room: `order-${orderId}`,
         event: `chat-message-${orderId}`,
         senderId,
         receiverId,
-        message: message.substring(0, 50) + '...',
+        messagePreview: `${message.substring(0, 50)}...`,
       });
       emitChatMessage(orderId, socketMessage);
     } else {

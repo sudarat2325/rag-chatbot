@@ -3,10 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  User,
   Car,
   Phone,
-  Mail,
   MapPin,
   FileText,
   AlertCircle,

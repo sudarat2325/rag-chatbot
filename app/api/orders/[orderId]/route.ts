@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import type { ApiResponse } from '@/lib/types';
 import { DeliveryStatus, OrderStatus, Prisma, NotificationType } from '@prisma/client';
-import { cache, CacheKeys, CacheTTL } from '@/lib/cache/cache';
+import { cache } from '@/lib/cache/cache';
 import logger from '@/lib/logger/winston';
 import { PerformanceMonitor } from '@/lib/logger/errorHandler';
 

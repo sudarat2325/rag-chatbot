@@ -1,5 +1,5 @@
 /* eslint-env serviceworker */
-/* global console, self, clients, fetch, atob, caches */
+/* global console, self, clients, fetch, atob, caches, URL, Response */
 /**
  * Service Worker for PWA
  *

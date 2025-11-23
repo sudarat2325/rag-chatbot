@@ -62,7 +62,7 @@ export default function DriverDashboard() {
   const [todayStats, setTodayStats] = useState({ deliveries: 0, earnings: 0 });
   const [acceptingDeliveryId, setAcceptingDeliveryId] = useState<string | null>(null);
 
-  const { joinOrder, leaveOrder, joinDelivery, leaveDelivery, on, off } = useSocket(userId);
+  const { joinOrder, leaveOrder, joinDelivery, leaveDelivery } = useSocket(userId);
 
   const calculateDistanceKm = (
     targetLat?: number | null,
@@ -165,7 +165,7 @@ export default function DriverDashboard() {
     // Join delivery room for location tracking
     joinDelivery(currentDelivery.orderId);
 
-    console.log('🔵 Driver joined rooms:', {
+    console.warn('🔵 Driver joined rooms:', {
       orderId: currentDelivery.orderId,
       orderRoom: `order-${currentDelivery.orderId}`,
       deliveryRoom: `delivery-${currentDelivery.orderId}`,
@@ -174,7 +174,7 @@ export default function DriverDashboard() {
     return () => {
       leaveOrder(currentDelivery.orderId);
       leaveDelivery(currentDelivery.orderId);
-      console.log('🔴 Driver left rooms:', currentDelivery.orderId);
+      console.warn('🔴 Driver left rooms:', currentDelivery.orderId);
     };
   }, [currentDelivery?.orderId, joinOrder, leaveOrder, joinDelivery, leaveDelivery]);
 
@@ -222,7 +222,7 @@ export default function DriverDashboard() {
         // Check if driver profile exists
         if (!profileData.data?.driverProfile) {
           // Create driver profile automatically
-          console.log('Driver profile not found, creating...');
+          console.warn('Driver profile not found, creating...');
           const createResponse = await fetch(`/api/drivers/${driverId}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
@@ -235,7 +235,7 @@ export default function DriverDashboard() {
 
           const createData = await createResponse.json();
           if (createData.success) {
-            console.log('Driver profile created successfully');
+            console.warn('Driver profile created successfully');
             determinedOnline = false;
           }
         } else {

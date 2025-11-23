@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import type { ApiResponse } from '@/lib/types';
 import { Prisma, DeliveryStatus, NotificationType } from '@prisma/client';
+import logger from '@/lib/logger/winston';
 
 // GET /api/deliveries - Get deliveries for driver
 export async function GET(request: NextRequest) {
@@ -57,9 +58,9 @@ export async function GET(request: NextRequest) {
       });
 
       // Step 2: Filter by order status in code
-      console.log('📦 Found deliveries:', deliveries.length);
+      logger.info('Found deliveries matching criteria', { count: deliveries.length });
       deliveries.forEach((d, i) => {
-        console.log(`Delivery ${i}:`, {
+        logger.info(`Delivery ${i}`, {
           id: d.id,
           orderId: d.orderId,
           status: d.status,
@@ -83,7 +84,9 @@ export async function GET(request: NextRequest) {
         return orderStatus === 'READY';
       }).slice(0, 10); // Take first 10
 
-      console.log('✅ Available deliveries after filter:', availableDeliveries.length);
+      logger.info('Available deliveries after READY filter', {
+        count: availableDeliveries.length,
+      });
 
       const response: ApiResponse = {
         success: true,

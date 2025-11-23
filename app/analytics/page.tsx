@@ -4,15 +4,7 @@ import { useState, useEffect } from 'react';
 import { RevenueChart } from '@/components/analytics/RevenueChart';
 import { StatCard } from '@/components/analytics/StatCard';
 import { TopSellingItems } from '@/components/analytics/TopSellingItems';
-import {
-  DollarSign,
-  ShoppingBag,
-  TrendingUp,
-  Star,
-  Users,
-  XCircle,
-  ArrowLeft,
-} from 'lucide-react';
+import { DollarSign, ShoppingBag, TrendingUp, Star, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 export default function AnalyticsPage() {

@@ -1,3 +1,5 @@
+/* eslint-env node, jest */
+/* global require, process, global, jest, console */
 // Jest setup file
 require('@testing-library/jest-dom');
 

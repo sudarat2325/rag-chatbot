@@ -26,24 +26,26 @@ export async function GET(request: NextRequest) {
 
     // Calculate date range
     const now = new Date();
-    let startDate = new Date();
-
-    switch (period) {
-      case '7d':
-        startDate.setDate(now.getDate() - 7);
-        break;
-      case '30d':
-        startDate.setDate(now.getDate() - 30);
-        break;
-      case '90d':
-        startDate.setDate(now.getDate() - 90);
-        break;
-      case '1y':
-        startDate.setFullYear(now.getFullYear() - 1);
-        break;
-      default:
-        startDate.setDate(now.getDate() - 7);
-    }
+    const startDate = (() => {
+      const date = new Date();
+      switch (period) {
+        case '7d':
+          date.setDate(now.getDate() - 7);
+          break;
+        case '30d':
+          date.setDate(now.getDate() - 30);
+          break;
+        case '90d':
+          date.setDate(now.getDate() - 90);
+          break;
+        case '1y':
+          date.setFullYear(now.getFullYear() - 1);
+          break;
+        default:
+          date.setDate(now.getDate() - 7);
+      }
+      return date;
+    })();
 
     // Get orders for the period
     const orders = await prisma.order.findMany({

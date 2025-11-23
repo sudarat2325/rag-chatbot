@@ -1,5 +1,5 @@
-import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import { generatePromptPayQR, awardLoyaltyPoints } from '../../lib/services/payment';
+import { describe, it, expect, jest } from '@jest/globals';
+import { generatePromptPayQR } from '../../lib/services/payment';
 
 // Mock modules
 jest.mock('promptpay-qr');

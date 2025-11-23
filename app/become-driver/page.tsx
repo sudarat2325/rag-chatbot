@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bike, MapPin, Phone, Mail, Car, AlertCircle, Upload, FileText } from 'lucide-react';
+import { Bike, MapPin, Phone, Car, AlertCircle, FileText } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 
 interface FormData {
