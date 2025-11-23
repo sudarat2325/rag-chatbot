@@ -87,7 +87,11 @@ npm install
 
 # Set up environment variables
 cp .env.example .env
-# Edit .env and add your ANTHROPIC_API_KEY
+# Edit .env and add:
+# - ANTHROPIC_API_KEY
+# - DATABASE_URL (MongoDB connection string)
+# - NEXTAUTH_SECRET
+# - GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET (see GOOGLE_OAUTH_SETUP.md)
 ```
 
 ### Usage
@@ -104,6 +108,9 @@ cp .env.example .env
 
 # Run ingestion
 npm run ingest
+
+# Sync Prisma schema (creates NextAuth collections, etc.)
+npx prisma db push
 ```
 
 #### 2. Start Web UI

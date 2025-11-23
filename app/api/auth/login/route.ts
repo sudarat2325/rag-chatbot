@@ -36,55 +36,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // If user not found, create demo user with default address
     if (!user) {
-      console.warn('User not found, creating demo user...');
-      const hashedPassword = await bcrypt.hash(password, 10);
-
-      // Create user with default address in a transaction
-      const newUser = await prisma.$transaction(async (tx) => {
-        const createdUser = await tx.user.create({
-          data: {
-            email,
-            password: hashedPassword,
-            name: email.split('@')[0],
-            role: 'CUSTOMER',
-          },
-        });
-
-        // Create default address for the user
-        await tx.address.create({
-          data: {
-            userId: createdUser.id,
-            label: 'บ้าน',
-            fullAddress: '123 ถนนสุขุมวิท แขวงคลองเตย เขตคลองเตย กรุงเทพฯ 10110',
-            latitude: 13.7563,
-            longitude: 100.5018,
-            district: 'คลองเตย',
-            province: 'กรุงเทพมหานคร',
-            postalCode: '10110',
-            isDefault: true,
-          },
-        });
-
-        return createdUser;
-      });
-
-      // Fetch user with password for verification
-      user = await prisma.user.findUnique({
-        where: { id: newUser.id },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          phone: true,
-          role: true,
-          password: true,
-        },
-      });
-    }
-
-    if (!user) {
+      console.warn('Credential login attempted with unknown email:', email);
       return NextResponse.json(
         { success: false, error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' },
         { status: 401 }
